@@ -96,6 +96,12 @@
   .p-btn.call { background:#f0f4f8; color:#1a3a5c; border:1px solid #c5d0dc; }
   .p-btn:hover { opacity:0.85; }
 
+  .filter-controls { display:flex; gap:6px; margin-top:10px; }
+  .risk-btn { flex:1; padding:6px; border:1px solid #c5d0dc; border-radius:5px; font-size:0.75rem; font-weight:600; cursor:pointer; background:#fff; color:#2d3e50; transition:all 0.2s; }
+  .risk-btn.critical:hover, .risk-btn.critical.active { background:#fee2e2; border-color:#ef4444; color:#b91c1c; }
+  .risk-btn.moderate:hover, .risk-btn.moderate.active { background:#ffedd5; border-color:#f97316; color:#c2410c; }
+  .risk-btn.low:hover, .risk-btn.low.active { background:#dcfce7; border-color:#22c55e; color:#15803d; }
+
   @keyframes borderGlow {
     0%   { opacity: 0.7; }
     50%  { opacity: 1; }
@@ -117,11 +123,17 @@
 <div class="main">
   <div class="sidebar">
     <div class="search-section">
-      <div class="search-label">Search Location</div>
+      <div class="search-label">Location & Risk Level</div>
       <div class="search-row">
-        <input id="searchInput" class="search-input" placeholder="City, district or area in AP…" autocomplete="off"/>
+        <input id="searchInput" class="search-input" placeholder="City, district or area…" autocomplete="off"/>
+        <button class="search-btn" title="Use GPS" onclick="useGPS()" style="padding:8px 10px;">📍</button>
         <button class="search-btn" onclick="searchLocation()">Search</button>
         <div id="suggestions"></div>
+      </div>
+      <div class="filter-controls">
+         <button class="risk-btn critical" onclick="setRisk('critical')">Critical</button>
+         <button class="risk-btn moderate" onclick="setRisk('moderate')">Moderate</button>
+         <button class="risk-btn low" onclick="setRisk('low')">Low Risk</button>
       </div>
     </div>
 
@@ -148,6 +160,10 @@
   <div class="leg-row"><div class="leg-dot" style="background:#ff0000; border:2px solid #fff; box-shadow:0 0 0 1px #ff0000;"></div>Nearest Hospital</div>
   <div class="leg-row"><div class="leg-dot" style="background:#f59e0b;"></div>Searched Location</div>
   <div class="leg-row"><div class="leg-line" style="background:linear-gradient(90deg,#00e5ff,transparent,#00e5ff); height:2px; border-radius:2px;"></div>Ant Path Route</div>
+  <div style="margin:8px 0 4px 0; font-weight:bold; font-size:0.65rem; color:#1a3a5c;">RISK LEVELS</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#ef4444;"></div>Critical (1st Nearest)</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#f97316;"></div>Moderate (2nd Nearest)</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#22c55e;"></div>Low (3rd Nearest)</div>
 </div>
 
 <div id="notif">
@@ -157,8 +173,13 @@
 
 <script>
 // ============================================================
-// HOSPITAL DATA — 32 hospitals
+// GLOBAL STATE & DATA — 32 hospitals
 // ============================================================
+let currentSearchLat = null;
+let currentSearchLng = null;
+let currentSearchLabel = null;
+let activeRisk = null; // 'critical', 'moderate', 'low'
+
 const HOSPITALS = [
   { id:1,  name:"King George Hospital",               dist:"Visakhapatnam",         type:"govt",    beds:1200, specialty:"Multi-Specialty",  lat:17.7188, lng:83.2985, phone:"0891-2565539", emergency:true },
   { id:2,  name:"Care Hospitals Visakhapatnam",        dist:"Visakhapatnam",         type:"private", beds:350,  specialty:"Cardiology",        lat:17.7231, lng:83.3012, phone:"0891-6762222", emergency:true },
@@ -443,7 +464,44 @@ async function searchLocation() {
   } catch(e){showNotif('Error','Could not reach search service.');}
 }
 
+function useGPS() {
+  if (!navigator.geolocation) {
+    showNotif('Error', 'Geolocation is not supported by your browser');
+    return;
+  }
+  showNotif('Locating...', 'Fetching your GPS location');
+  navigator.geolocation.getCurrentPosition((position) => {
+    goToLocation(position.coords.latitude, position.coords.longitude, "Your Location");
+  }, () => {
+    showNotif('Error', 'Unable to retrieve your location');
+  });
+}
+
+function setRisk(riskStr) {
+  activeRisk = riskStr;
+  document.querySelectorAll('.risk-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`.risk-btn.${activeRisk}`).classList.add('active');
+  
+  if (currentSearchLat && currentSearchLng) {
+    updateMapAndList();
+  } else {
+    showNotif('Select Location', 'Please search for a location or use GPS first.');
+  }
+}
+
 function goToLocation(lat,lng,label) {
+  currentSearchLat = lat;
+  currentSearchLng = lng;
+  currentSearchLabel = label;
+  updateMapAndList();
+}
+
+function updateMapAndList() {
+  if (!currentSearchLat || !currentSearchLng) return;
+  const lat = currentSearchLat;
+  const lng = currentSearchLng;
+  const label = currentSearchLabel;
+
   if(searchMarker) map.removeLayer(searchMarker);
   if(nearestCircle) map.removeLayer(nearestCircle);
 
@@ -461,11 +519,17 @@ function goToLocation(lat,lng,label) {
 
   // Find nearest hospitals
   const sorted = HOSPITALS.map(h=>({...h, _dist:haversine(lat,lng,h.lat,h.lng)})).sort((a,b)=>a._dist-b._dist);
-  const nearest = sorted.slice(0,5);
+  
+  let targetHospitals = [];
+  if (activeRisk === 'critical') targetHospitals = [sorted[0]];
+  else if (activeRisk === 'moderate') targetHospitals = [sorted.length > 1 ? sorted[1] : sorted[0]];
+  else if (activeRisk === 'low') targetHospitals = [sorted.length > 2 ? sorted[2] : sorted[0]];
+  else targetHospitals = sorted.slice(0,5);
 
-  // Radius circle
+  // Radius circle based on the furthest assigned hospital
+  const maxDist = targetHospitals[targetHospitals.length-1]._dist;
   nearestCircle = L.circle([lat,lng],{
-    radius: Math.max(nearest[0]._dist*1200, 20000),
+    radius: Math.max(maxDist*1200, 15000),
     color:'#f59e0b', weight:1.5, dashArray:'6 4',
     fillColor:'#f59e0b', fillOpacity:0.05
   }).addTo(map);
@@ -475,28 +539,41 @@ function goToLocation(lat,lng,label) {
     if (map.hasLayer(markers[h.id])) map.removeLayer(markers[h.id]);
   });
 
-  // Highlight nearest 5 markers on map
-  nearest.forEach((h,i)=>{
+  // Highlight selected markers
+  targetHospitals.forEach((h,i)=>{
+    let mColor = '#ff6600';
+    if (activeRisk === 'critical' || (!activeRisk && i === 0)) mColor = '#ef4444';
+    else if (activeRisk === 'moderate') mColor = '#f97316';
+    else if (activeRisk === 'low') mColor = '#22c55e';
+
     markers[h.id].setStyle({
-      radius:      i===0?11:8,
-      fillColor:   i===0?'#ff0000':'#ff6600',
-      color:'#fff', weight:2, opacity:1, fillOpacity:1
+      radius:      activeRisk || i===0?11:8,
+      fillColor:   mColor,
+      color:       '#fff', weight:2, opacity:1, fillOpacity:1
     }).addTo(map);
   });
 
-  // Open nearest popup
-  markers[nearest[0].id].openPopup();
+  // Open popup
+  markers[targetHospitals[0].id].openPopup();
 
-  renderList(nearest, `Nearest Hospitals to "${label}"`);
-  showNotif(`${nearest.length} Hospitals Found`,`Nearest: ${nearest[0].name} · ${nearest[0]._dist.toFixed(1)} km · Fetching road routes…`);
+  let title = activeRisk ? `${activeRisk.toUpperCase()} RISK: Assigned` : `Nearest Hospitals to "${label}"`;
+  renderList(targetHospitals, title);
+  showNotif(`${targetHospitals.length} Hospital(s) Assigned`,`Target: ${targetHospitals[0].name} · ${targetHospitals[0]._dist.toFixed(1)} km`);
 
-  // Draw road-based animated ant-paths via OSRM (async, one by one)
-  nearest.forEach((h,i) => drawRoadPath(lat, lng, h, i));
+  // Draw paths
+  targetHospitals.forEach((h,i) => {
+    let pColor = '#ff8800';
+    if (activeRisk === 'critical' || (!activeRisk && i === 0)) pColor = '#ef4444';
+    else if (activeRisk === 'moderate') pColor = '#f97316';
+    else if (activeRisk === 'low') pColor = '#22c55e';
+
+    drawRoadPath(lat, lng, h, activeRisk ? 0 : i, pColor);
+  });
 }
 
-async function drawRoadPath(fromLat, fromLng, hospital, idx) {
-  const antColor   = idx===0 ? '#e84545' : '#ff8800';
-  const antWeight  = idx===0 ? 5 : 3;
+async function drawRoadPath(fromLat, fromLng, hospital, idx, overrideColor) {
+  const antColor   = overrideColor || (idx===0 ? '#e84545' : '#ff8800');
+  const antWeight  = overrideColor || idx===0 ? 5 : 3;
   const antOpacity = idx===0 ? 1 : 0.70;
 
   try {
