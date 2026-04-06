@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AP Hospital Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:#f0f4f8; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  header {
+    background:#1a3a5c;
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    z-index:1000;
+    border-bottom:3px solid #e84545;
+  }
+  .logo-box { width:40px; height:40px; background:#e84545; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .header-title h1 { font-size:1.1rem; font-weight:700; color:#fff; }
+  .header-title p { font-size:0.65rem; color:#90aec8; letter-spacing:1px; text-transform:uppercase; margin-top:1px; }
+  .live-pill { margin-left:auto; background:#0e6b3a; border:1px solid #1aad60; padding:3px 10px; border-radius:20px; font-size:0.65rem; color:#1aff7a; font-weight:600; letter-spacing:1px; display:flex; align-items:center; gap:5px; }
+  .live-dot { width:6px; height:6px; background:#1aff7a; border-radius:50%; }
+
+  .main { display:flex; flex:1; overflow:hidden; }
+
+  .sidebar { width:300px; background:#fff; border-right:1px solid #d6dde6; display:flex; flex-direction:column; overflow:hidden; }
+
+  .search-section { padding:14px; background:#f7f9fc; border-bottom:1px solid #d6dde6; }
+  .search-label { font-size:0.65rem; color:#1a3a5c; letter-spacing:1.5px; text-transform:uppercase; font-weight:700; margin-bottom:7px; }
+  .search-row { display:flex; gap:7px; position:relative; }
+  .search-input { flex:1; border:1px solid #c5d0dc; border-radius:7px; padding:8px 12px; font-size:0.83rem; font-family:inherit; outline:none; color:#1a3a5c; background:#fff; }
+  .search-input:focus { border-color:#1a3a5c; }
+  .search-input::placeholder { color:#aab4c0; }
+  .search-btn { background:#1a3a5c; border:none; border-radius:7px; padding:8px 14px; color:#fff; font-size:0.83rem; font-weight:600; cursor:pointer; font-family:inherit; }
+  .search-btn:hover { background:#243f60; }
+
+  #suggestions { position:absolute; top:calc(100% + 4px); left:0; right:50px; z-index:9999; background:#fff; border:1px solid #c5d0dc; border-radius:7px; max-height:180px; overflow-y:auto; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+  .sugg-item { padding:9px 12px; font-size:0.8rem; cursor:pointer; color:#2d3e50; border-bottom:1px solid #f0f4f8; }
+  .sugg-item:hover { background:#f0f6ff; color:#1a3a5c; }
+
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); border-bottom:1px solid #d6dde6; }
+  .stat-cell { padding:10px 6px; text-align:center; background:#fff; }
+  .stat-cell + .stat-cell { border-left:1px solid #d6dde6; }
+  .stat-val { font-size:1.25rem; font-weight:700; color:#1a3a5c; }
+  .stat-lbl { font-size:0.58rem; color:#7a8fa0; text-transform:uppercase; letter-spacing:0.8px; margin-top:1px; }
+
+  .list-area { flex:1; overflow-y:auto; padding:10px; }
+  .list-header { font-size:0.62rem; color:#7a8fa0; letter-spacing:1.5px; text-transform:uppercase; font-weight:600; padding:4px 4px 8px; }
+
+  .h-card { border:1px solid #e4eaf0; border-radius:8px; padding:10px 12px; margin-bottom:7px; cursor:pointer; background:#fff; border-left:4px solid #1a3a5c; }
+  .h-card.private { border-left-color:#e84545; }
+  .h-card:hover { background:#f5f8fc; }
+  .h-card.active { background:#eef4fc; border-color:#1a3a5c; }
+  .hc-top { display:flex; align-items:flex-start; gap:8px; }
+  .hc-name { font-size:0.82rem; font-weight:600; color:#1a2a3a; line-height:1.3; flex:1; }
+  .hc-badge { font-size:0.56rem; padding:2px 7px; border-radius:20px; font-weight:700; letter-spacing:0.7px; white-space:nowrap; flex-shrink:0; }
+  .bg { background:#dbeafe; color:#1d4ed8; }
+  .bp { background:#fee2e2; color:#b91c1c; }
+  .hc-dist { font-size:0.68rem; color:#7a8fa0; margin-top:3px; }
+  .hc-meta { display:flex; gap:10px; margin-top:6px; font-size:0.67rem; color:#90a0b0; flex-wrap:wrap; }
+  .dist-pill { margin-top:5px; display:inline-block; background:#e8f5ee; color:#0e6b3a; font-size:0.65rem; font-weight:600; padding:2px 8px; border-radius:4px; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-thumb { background:#c5d0dc; border-radius:2px; }
+
+  #map { flex:1; }
+
+  .legend { position:absolute; bottom:18px; right:18px; z-index:999; background:rgba(255,255,255,0.96); border:1px solid #d6dde6; border-radius:8px; padding:10px 14px; box-shadow:0 2px 8px rgba(0,0,0,0.12); font-size:0.7rem; color:#2d3e50; }
+  .legend-title { font-weight:700; color:#1a3a5c; letter-spacing:1px; text-transform:uppercase; font-size:0.62rem; margin-bottom:7px; }
+  .leg-row { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+  .leg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .leg-line { width:22px; height:3px; flex-shrink:0; }
+
+  #notif { position:fixed; bottom:18px; left:320px; z-index:9999; background:#1a3a5c; color:#fff; border-radius:8px; padding:10px 16px; font-size:0.8rem; box-shadow:0 4px 16px rgba(0,0,0,0.2); opacity:0; pointer-events:none; border-left:4px solid #e84545; }
+  #notif.show { opacity:1; }
+  .notif-title { font-weight:700; font-size:0.85rem; margin-bottom:2px; }
+
+  .custom-popup .leaflet-popup-content-wrapper { border-radius:10px; padding:0; box-shadow:0 4px 20px rgba(0,0,0,0.18); }
+  .custom-popup .leaflet-popup-tip-container { display:none; }
+  .p-inner { padding:14px 16px; min-width:210px; }
+  .p-name { font-size:0.95rem; font-weight:700; color:#1a2a3a; margin-bottom:2px; }
+  .p-type { font-size:0.62rem; color:#e84545; text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:10px; }
+  .p-rows { display:flex; flex-direction:column; gap:5px; }
+  .p-row { display:flex; gap:8px; font-size:0.76rem; }
+  .p-lbl { color:#7a8fa0; min-width:75px; }
+  .p-val { color:#1a2a3a; font-weight:500; }
+  .p-btns { display:flex; gap:7px; margin-top:11px; }
+  .p-btn { flex:1; padding:7px; border:none; border-radius:6px; font-size:0.72rem; font-weight:600; cursor:pointer; font-family:inherit; }
+  .p-btn.dir { background:#1a3a5c; color:#fff; }
+  .p-btn.call { background:#f0f4f8; color:#1a3a5c; border:1px solid #c5d0dc; }
+  .p-btn:hover { opacity:0.85; }
+
+  @keyframes borderGlow {
+    0%   { opacity: 0.7; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.7; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-box">🏥</div>
+  <div class="header-title">
+    <h1>Andhra Pradesh Hospital Tracking System</h1>
+    <p>Healthcare Infrastructure · District-wise Overview</p>
+  </div>
+  <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="search-section">
+      <div class="search-label">Search Location</div>
+      <div class="search-row">
+        <input id="searchInput" class="search-input" placeholder="City, district or area in AP…" autocomplete="off"/>
+        <button class="search-btn" onclick="searchLocation()">Search</button>
+        <div id="suggestions"></div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-cell"><div class="stat-val" id="totalCount">32</div><div class="stat-lbl">Total</div></div>
+      <div class="stat-cell"><div class="stat-val" id="govtCount">18</div><div class="stat-lbl">Govt</div></div>
+      <div class="stat-cell"><div class="stat-val" id="privCount">14</div><div class="stat-lbl">Private</div></div>
+    </div>
+
+    <div class="list-area">
+      <div class="list-header" id="listHeader">All Hospitals — Andhra Pradesh</div>
+      <div id="hospitalList"></div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-title">Legend</div>
+  <div class="leg-row"><div class="leg-line" style="background:#ff6600; height:3px; border-radius:2px; box-shadow:0 0 6px #ff6600;"></div>AP State Border</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#1a3a5c;"></div>Government Hospital</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#e84545;"></div>Private Hospital</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#ff0000; border:2px solid #fff; box-shadow:0 0 0 1px #ff0000;"></div>Nearest Hospital</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#f59e0b;"></div>Searched Location</div>
+  <div class="leg-row"><div class="leg-line" style="background:linear-gradient(90deg,#00e5ff,transparent,#00e5ff); height:2px; border-radius:2px;"></div>Ant Path Route</div>
+</div>
+
+<div id="notif">
+  <div class="notif-title" id="notifTitle"></div>
+  <div id="notifMsg"></div>
+</div>
+
+<script>
+// ============================================================
+// HOSPITAL DATA — 32 hospitals
+// ============================================================
+const HOSPITALS = [
+  { id:1,  name:"King George Hospital",               dist:"Visakhapatnam",         type:"govt",    beds:1200, specialty:"Multi-Specialty",  lat:17.7188, lng:83.2985, phone:"0891-2565539", emergency:true },
+  { id:2,  name:"Care Hospitals Visakhapatnam",        dist:"Visakhapatnam",         type:"private", beds:350,  specialty:"Cardiology",        lat:17.7231, lng:83.3012, phone:"0891-6762222", emergency:true },
+  { id:3,  name:"Seven Hills Hospital",                dist:"Visakhapatnam",         type:"private", beds:500,  specialty:"Oncology",          lat:17.7340, lng:83.3120, phone:"0891-2728888", emergency:true },
+  { id:4,  name:"Govt General Hospital Vijayawada",   dist:"Krishna",               type:"govt",    beds:900,  specialty:"Multi-Specialty",  lat:16.5062, lng:80.6480, phone:"0866-2432024", emergency:true },
+  { id:5,  name:"Andhra Hospitals Vijayawada",         dist:"Krishna",               type:"private", beds:400,  specialty:"Neurology",         lat:16.5100, lng:80.6350, phone:"0866-2492929", emergency:true },
+  { id:6,  name:"Manipal Hospital Vijayawada",         dist:"Krishna",               type:"private", beds:300,  specialty:"Orthopedics",       lat:16.5200, lng:80.6280, phone:"0866-6677777", emergency:true },
+  { id:7,  name:"Govt General Hospital Guntur",       dist:"Guntur",                type:"govt",    beds:850,  specialty:"Multi-Specialty",  lat:16.3067, lng:80.4365, phone:"0863-2226133", emergency:true },
+  { id:8,  name:"NRI Medical College Hospital",        dist:"Guntur",                type:"govt",    beds:650,  specialty:"Teaching",          lat:16.3145, lng:80.4412, phone:"0863-2346100", emergency:true },
+  { id:9,  name:"SVIMS Hospital Tirupati",             dist:"Tirupati",              type:"govt",    beds:750,  specialty:"Multi-Specialty",  lat:13.6394, lng:79.4196, phone:"0877-2287777", emergency:true },
+  { id:10, name:"RUIA Government Hospital",            dist:"Tirupati",              type:"govt",    beds:600,  specialty:"General",           lat:13.6288, lng:79.4192, phone:"0877-2236020", emergency:true },
+  { id:11, name:"Padmavathi Medical College",          dist:"Tirupati",              type:"govt",    beds:500,  specialty:"Teaching",          lat:13.6500, lng:79.4100, phone:"0877-2289922", emergency:false },
+  { id:12, name:"Govt General Hospital Kurnool",      dist:"Kurnool",               type:"govt",    beds:700,  specialty:"Multi-Specialty",  lat:15.8281, lng:78.0373, phone:"08518-222301", emergency:true },
+  { id:13, name:"Narayana Hrudayalaya Kurnool",        dist:"Kurnool",               type:"private", beds:280,  specialty:"Cardiology",        lat:15.8350, lng:78.0420, phone:"08518-234567", emergency:true },
+  { id:14, name:"Govt General Hospital Nellore",      dist:"Nellore",               type:"govt",    beds:750,  specialty:"Multi-Specialty",  lat:14.4426, lng:79.9865, phone:"0861-2317033", emergency:true },
+  { id:15, name:"Narayana Medical College Hospital",   dist:"Nellore",               type:"govt",    beds:600,  specialty:"Teaching",          lat:14.4385, lng:79.9920, phone:"0861-2399999", emergency:true },
+  { id:16, name:"Lotus Hospital Nellore",              dist:"Nellore",               type:"private", beds:200,  specialty:"General",           lat:14.4500, lng:79.9800, phone:"0861-2312345", emergency:false },
+  { id:17, name:"RIMS Hospital Kadapa",                dist:"YSR Kadapa",            type:"govt",    beds:600,  specialty:"Multi-Specialty",  lat:14.4674, lng:78.8241, phone:"08562-253222", emergency:true },
+  { id:18, name:"Krishnaveni Hospital Kadapa",         dist:"YSR Kadapa",            type:"private", beds:150,  specialty:"General",           lat:14.4720, lng:78.8180, phone:"08562-241234", emergency:false },
+  { id:19, name:"Govt General Hospital Kakinada",     dist:"East Godavari",         type:"govt",    beds:650,  specialty:"Multi-Specialty",  lat:16.9891, lng:82.2475, phone:"0884-2365333", emergency:true },
+  { id:20, name:"GSL Medical College Rajahmundry",    dist:"East Godavari",         type:"govt",    beds:500,  specialty:"Teaching",          lat:16.9950, lng:82.2520, phone:"0884-2356789", emergency:true },
+  { id:21, name:"Govt Hospital Eluru",                 dist:"West Godavari",         type:"govt",    beds:500,  specialty:"Multi-Specialty",  lat:16.7107, lng:81.0952, phone:"08812-222001", emergency:true },
+  { id:22, name:"Eluru Medical College Hospital",      dist:"West Godavari",         type:"govt",    beds:400,  specialty:"Teaching",          lat:16.7150, lng:81.1000, phone:"08812-235678", emergency:false },
+  { id:23, name:"Govt General Hospital Anantapur",    dist:"Anantapur",             type:"govt",    beds:650,  specialty:"Multi-Specialty",  lat:14.6819, lng:77.6006, phone:"08554-244301", emergency:true },
+  { id:24, name:"Ravindra Hospitals Anantapur",        dist:"Anantapur",             type:"private", beds:200,  specialty:"General",           lat:14.6880, lng:77.5950, phone:"08554-234567", emergency:false },
+  { id:25, name:"Govt Hospital Chittoor",              dist:"Chittoor",              type:"govt",    beds:450,  specialty:"Multi-Specialty",  lat:13.2172, lng:79.0996, phone:"08572-233501", emergency:true },
+  { id:26, name:"Sree Balaji Hospital Chittoor",       dist:"Chittoor",              type:"private", beds:180,  specialty:"Orthopedics",       lat:13.2210, lng:79.1040, phone:"08572-245678", emergency:false },
+  { id:27, name:"Govt Hospital Srikakulam",            dist:"Srikakulam",            type:"govt",    beds:400,  specialty:"Multi-Specialty",  lat:18.2950, lng:83.8958, phone:"08942-222301", emergency:true },
+  { id:28, name:"Govt Hospital Vizianagaram",          dist:"Vizianagaram",          type:"govt",    beds:450,  specialty:"Multi-Specialty",  lat:18.1067, lng:83.3956, phone:"08922-225501", emergency:true },
+  { id:29, name:"Sai Sudha Hospital Vizianagaram",     dist:"Vizianagaram",          type:"private", beds:120,  specialty:"General",           lat:18.1100, lng:83.4000, phone:"08922-234567", emergency:false },
+  { id:30, name:"Govt Hospital Ongole",                dist:"Prakasam",              type:"govt",    beds:500,  specialty:"Multi-Specialty",  lat:15.5057, lng:80.0499, phone:"08592-232301", emergency:true },
+  { id:31, name:"Govt Hospital Narasaraopet",          dist:"Palnadu",               type:"govt",    beds:300,  specialty:"General",           lat:16.2343, lng:80.0476, phone:"08647-222501", emergency:true },
+  { id:32, name:"Govt Hospital Paderu",                dist:"Alluri Sitharama Raju", type:"govt",    beds:200,  specialty:"General",           lat:18.0700, lng:82.6650, phone:"08936-232301", emergency:false },
+];
+
+// ============================================================
+// MAP — Standard OSM base tiles
+// ============================================================
+const map = L.map('map', { center:[15.9129,79.7400], zoom:7, zoomControl:true });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom:19
+}).addTo(map);
+
+// ============================================================
+// AP STATE BOUNDARY — fetched from Nominatim/OSM polygons API
+// Accurate boundary loaded from OSM relation
+// ============================================================
+async function loadAPBoundary() {
+  try {
+    // Use Overpass API to get AP state boundary
+    const query = `[out:json];relation["name"="Andhra Pradesh"]["admin_level"="4"];out geom;`;
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.elements && data.elements.length > 0) {
+      const rel = data.elements[0];
+      // Build GeoJSON from outer members
+      const outerWays = rel.members.filter(m => m.type === 'way' && m.role === 'outer');
+      // Collect all coordinate segments
+      const segments = outerWays.map(w => w.geometry.map(g => [g.lat, g.lon]));
+      // Try to chain segments into one ring
+      const ring = chainSegments(segments);
+      if (ring.length > 0) {
+        const geoCoords = ring.map(p => [p[1], p[0]]); // lng,lat for GeoJSON
+        L.geoJSON({
+          type:'Feature',
+          geometry:{ type:'Polygon', coordinates:[geoCoords] }
+        }, {
+          style:{ color:'#ff6600', weight:5, opacity:1, fillColor:'#fff3e0', fillOpacity:0.06,
+                  className:'ap-glow-border' }
+        }).addTo(map);
+        return; // success, skip fallback
+      }
+    }
+  } catch(e) {
+    console.warn('Overpass fallback:', e);
+  }
+  // Fallback boundary
+  drawFallbackBoundary();
+}
+
+function chainSegments(segs) {
+  if (!segs.length) return [];
+  const result = [...segs[0]];
+  const used = new Set([0]);
+  for (let i = 1; i < segs.length * 2; i++) {
+    const last = result[result.length - 1];
+    let found = false;
+    for (let j = 0; j < segs.length; j++) {
+      if (used.has(j)) continue;
+      const s = segs[j];
+      if (dist(last, s[0]) < 0.01) { result.push(...s.slice(1)); used.add(j); found = true; break; }
+      if (dist(last, s[s.length-1]) < 0.01) { result.push(...[...s].reverse().slice(1)); used.add(j); found = true; break; }
+    }
+    if (!found || used.size === segs.length) break;
+  }
+  return result;
+}
+function dist(a,b) { return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2); }
+
+function drawFallbackBoundary() {
+  // Accurate approximate AP state outline
+  const apCoords = [
+    [77.05,14.18],[77.22,14.00],[77.50,13.92],[77.65,13.85],[77.82,13.70],
+    [78.00,13.55],[78.15,13.35],[78.30,13.15],[78.45,13.00],[78.65,12.98],
+    [78.85,13.05],[79.10,13.08],[79.30,13.10],[79.55,13.08],[79.70,13.05],
+    [79.85,13.00],[79.90,13.18],[79.95,13.35],[79.98,13.58],[80.02,13.80],
+    [80.05,14.00],[80.10,14.30],[80.15,14.55],[80.18,14.82],[80.20,15.05],
+    [80.22,15.30],[80.25,15.55],[80.28,15.80],[80.30,16.05],[80.20,16.25],
+    [80.10,16.45],[80.00,16.60],[80.05,16.80],[80.15,17.00],[80.30,17.15],
+    [80.50,17.25],[80.70,17.30],[80.85,17.35],[81.05,17.40],[81.25,17.45],
+    [81.45,17.52],[81.65,17.60],[81.80,17.65],[82.00,17.68],[82.20,17.65],
+    [82.35,17.75],[82.50,17.88],[82.65,18.00],[82.80,18.05],[82.95,18.10],
+    [83.10,18.15],[83.20,18.25],[83.30,18.38],[83.45,18.55],[83.60,18.75],
+    [83.55,18.88],[83.40,18.80],[83.20,18.78],[83.00,18.72],[82.85,18.68],
+    [82.65,18.55],[82.45,18.48],[82.25,18.40],[82.05,18.35],[81.85,18.28],
+    [81.60,18.20],[81.45,18.10],[81.25,17.95],[81.10,17.88],[80.92,17.80],
+    [80.72,17.72],[80.55,17.65],[80.40,17.58],[80.20,17.52],[80.00,17.48],
+    [79.80,17.45],[79.60,17.42],[79.40,17.38],[79.20,17.32],[79.00,17.25],
+    [78.80,17.18],[78.60,17.12],[78.40,17.05],[78.20,17.00],[78.00,16.95],
+    [77.85,16.85],[77.72,16.72],[77.60,16.58],[77.50,16.42],[77.40,16.28],
+    [77.30,16.12],[77.20,15.95],[77.12,15.78],[77.06,15.60],[77.00,15.42],
+    [76.95,15.22],[76.92,15.02],[76.90,14.82],[76.92,14.62],[76.98,14.42],
+    [77.05,14.18]
+  ];
+  L.geoJSON({
+    type:'Feature',
+    geometry:{ type:'Polygon', coordinates:[apCoords] }
+  }, {
+    style:{ color:'#ff6600', weight:5, opacity:1, fillColor:'#fff3e0', fillOpacity:0.06,
+            dashArray: null }
+  }).addTo(map);
+}
+
+// Call AP boundary on load
+loadAPBoundary();
+
+// ============================================================
+// DISTRICT BOUNDARIES
+// ============================================================
+const AP_DISTRICTS = {
+  type:'FeatureCollection',
+  features:[
+    {type:'Feature',properties:{name:'Srikakulam'},geometry:{type:'Polygon',coordinates:[[[83.55,18.20],[83.85,18.10],[84.10,18.25],[84.05,18.55],[83.80,18.70],[83.55,18.65],[83.35,18.50],[83.55,18.20]]]}},
+    {type:'Feature',properties:{name:'Vizianagaram'},geometry:{type:'Polygon',coordinates:[[[83.00,18.00],[83.35,18.00],[83.55,18.20],[83.35,18.50],[83.10,18.62],[82.88,18.52],[82.75,18.32],[83.00,18.00]]]}},
+    {type:'Feature',properties:{name:'Visakhapatnam'},geometry:{type:'Polygon',coordinates:[[[82.65,17.55],[83.00,17.55],[83.25,17.72],[83.00,18.00],[82.75,18.32],[82.50,18.22],[82.28,18.05],[82.42,17.75],[82.65,17.55]]]}},
+    {type:'Feature',properties:{name:'Alluri Sitharama Raju'},geometry:{type:'Polygon',coordinates:[[[81.90,17.58],[82.30,17.60],[82.65,17.55],[82.42,17.75],[82.28,18.05],[82.05,18.00],[81.80,17.88],[81.90,17.58]]]}},
+    {type:'Feature',properties:{name:'East Godavari'},geometry:{type:'Polygon',coordinates:[[[81.50,16.70],[81.90,16.72],[82.22,16.90],[82.45,17.12],[82.28,17.35],[82.00,17.45],[81.70,17.38],[81.45,17.20],[81.50,16.70]]]}},
+    {type:'Feature',properties:{name:'West Godavari'},geometry:{type:'Polygon',coordinates:[[[80.92,16.48],[81.28,16.48],[81.50,16.70],[81.45,17.20],[81.20,17.30],[80.95,17.15],[80.72,16.95],[80.92,16.48]]]}},
+    {type:'Feature',properties:{name:'Krishna'},geometry:{type:'Polygon',coordinates:[[[80.28,16.18],[80.65,16.18],[80.92,16.48],[80.72,16.95],[80.45,17.05],[80.20,16.88],[80.08,16.62],[80.28,16.18]]]}},
+    {type:'Feature',properties:{name:'Guntur'},geometry:{type:'Polygon',coordinates:[[[79.88,15.85],[80.28,15.85],[80.28,16.18],[80.08,16.62],[79.80,16.52],[79.58,16.30],[79.72,16.05],[79.88,15.85]]]}},
+    {type:'Feature',properties:{name:'Palnadu'},geometry:{type:'Polygon',coordinates:[[[79.48,15.88],[79.88,15.85],[79.72,16.05],[79.58,16.30],[79.35,16.20],[79.20,16.00],[79.35,15.78],[79.48,15.88]]]}},
+    {type:'Feature',properties:{name:'Prakasam'},geometry:{type:'Polygon',coordinates:[[[79.65,15.05],[80.05,15.05],[80.20,15.30],[80.15,15.62],[79.88,15.85],[79.48,15.88],[79.28,15.70],[79.45,15.35],[79.65,15.05]]]}},
+    {type:'Feature',properties:{name:'Nellore'},geometry:{type:'Polygon',coordinates:[[[79.50,13.85],[79.88,13.82],[80.10,14.05],[80.18,14.45],[80.12,14.82],[79.88,15.00],[79.65,15.05],[79.45,14.82],[79.38,14.52],[79.50,13.85]]]}},
+    {type:'Feature',properties:{name:'Tirupati'},geometry:{type:'Polygon',coordinates:[[[79.10,13.10],[79.50,13.08],[79.50,13.85],[79.38,14.10],[79.10,14.00],[78.92,13.75],[78.90,13.42],[79.10,13.10]]]}},
+    {type:'Feature',properties:{name:'Chittoor'},geometry:{type:'Polygon',coordinates:[[[78.65,12.98],[79.10,13.10],[78.90,13.42],[78.92,13.75],[78.65,13.88],[78.40,13.75],[78.20,13.48],[78.35,13.15],[78.65,12.98]]]}},
+    {type:'Feature',properties:{name:'YSR Kadapa'},geometry:{type:'Polygon',coordinates:[[[78.10,14.15],[78.55,14.08],[78.92,13.75],[79.10,14.00],[79.05,14.40],[78.82,14.70],[78.52,14.80],[78.22,14.68],[78.10,14.15]]]}},
+    {type:'Feature',properties:{name:'Kurnool'},geometry:{type:'Polygon',coordinates:[[[77.55,15.00],[78.00,14.98],[78.30,15.18],[78.22,14.68],[78.52,14.80],[78.45,15.10],[78.20,15.42],[77.85,15.55],[77.55,15.42],[77.55,15.00]]]}},
+    {type:'Feature',properties:{name:'Anantapur'},geometry:{type:'Polygon',coordinates:[[[76.95,14.20],[77.38,14.08],[77.70,13.90],[78.10,13.88],[78.10,14.15],[78.22,14.68],[78.00,14.98],[77.55,15.00],[77.18,14.88],[76.95,14.52],[76.95,14.20]]]}},
+  ]
+};
+
+
+// ============================================================
+// HOSPITAL CIRCLE MARKERS
+// ============================================================
+const markers = {};
+let searchMarker = null, nearestCircle = null, antPaths = [];
+
+function markerStyle(type, isNearest) {
+  return {
+    radius:      isNearest ? 10 : 7,
+    fillColor:   isNearest ? '#ff0000' : (type === 'govt' ? '#1a3a5c' : '#e84545'),
+    color:       '#fff',
+    weight:      2,
+    opacity:     1,
+    fillOpacity: 1
+  };
+}
+
+function buildPopup(h) {
+  return `<div class="p-inner">
+    <div class="p-name">${h.name}</div>
+    <div class="p-type">${h.type === 'govt' ? 'Government' : 'Private'} · ${h.specialty}</div>
+    <div class="p-rows">
+      <div class="p-row"><span class="p-lbl">District</span><span class="p-val">${h.dist}</span></div>
+      <div class="p-row"><span class="p-lbl">Beds</span><span class="p-val">${h.beds}</span></div>
+      <div class="p-row"><span class="p-lbl">Phone</span><span class="p-val">${h.phone}</span></div>
+      <div class="p-row"><span class="p-lbl">Emergency</span><span class="p-val" style="color:${h.emergency?'#0e6b3a':'#b91c1c'}">${h.emergency?'24/7 Available':'Not Available'}</span></div>
+    </div>
+    <div class="p-btns">
+      <button class="p-btn dir" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}','_blank')">Directions</button>
+      <button class="p-btn call" onclick="window.location.href='tel:${h.phone}'">Call</button>
+    </div>
+  </div>`;
+}
+
+HOSPITALS.forEach(h => {
+  const m = L.circleMarker([h.lat, h.lng], markerStyle(h.type, false));
+  m.bindPopup(buildPopup(h), { className:'custom-popup', maxWidth:260 });
+  m.on('click', () => highlightCard(h.id));
+  markers[h.id] = m;
+});
+
+// ============================================================
+// SIDEBAR LIST
+// ============================================================
+function renderList(list, title) {
+  document.getElementById('listHeader').textContent = title || 'All Hospitals — Andhra Pradesh';
+  const el = document.getElementById('hospitalList');
+  el.innerHTML = '';
+  list.forEach(h => {
+    const card = document.createElement('div');
+    card.className = `h-card ${h.type}`;
+    card.id = `card-${h.id}`;
+    card.innerHTML = `
+      <div class="hc-top">
+        <div class="hc-name">${h.name}</div>
+        <span class="hc-badge ${h.type==='govt'?'bg':'bp'}">${h.type==='govt'?'GOVT':'PRIVATE'}</span>
+      </div>
+      <div class="hc-dist">📍 ${h.dist}</div>
+      <div class="hc-meta">
+        <span>🛏 ${h.beds} beds</span>
+        <span>${h.specialty}</span>
+        ${h.emergency?'<span style="color:#0e6b3a">🚨 24/7</span>':''}
+      </div>
+      ${h._dist!==undefined?`<div class="dist-pill">📏 ${h._dist.toFixed(1)} km away</div>`:''}
+    `;
+    card.onclick = () => { map.setView([h.lat,h.lng],14); markers[h.id].openPopup(); highlightCard(h.id); };
+    el.appendChild(card);
+  });
+  document.getElementById('totalCount').textContent = list.length;
+  document.getElementById('govtCount').textContent  = list.filter(x=>x.type==='govt').length;
+  document.getElementById('privCount').textContent  = list.filter(x=>x.type==='private').length;
+}
+
+function highlightCard(id) {
+  document.querySelectorAll('.h-card').forEach(c=>c.classList.remove('active'));
+  const c = document.getElementById(`card-${id}`);
+  if (c) { c.classList.add('active'); c.scrollIntoView({block:'nearest'}); }
+}
+
+renderList([], 'Search a location to find nearby hospitals');
+
+// ============================================================
+// SEARCH
+// ============================================================
+const searchInput = document.getElementById('searchInput');
+let debTimer;
+searchInput.addEventListener('input', ()=>{ clearTimeout(debTimer); debTimer=setTimeout(()=>autoSuggest(searchInput.value),350); });
+searchInput.addEventListener('keydown', e=>{ if(e.key==='Enter') searchLocation(); });
+
+async function autoSuggest(q) {
+  const box = document.getElementById('suggestions');
+  if (!q||q.length<2){box.style.display='none';return;}
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+', Andhra Pradesh, India')}&format=json&limit=5`);
+    const data = await r.json();
+    if (!data.length){box.style.display='none';return;}
+    box.innerHTML='';
+    data.forEach(item=>{
+      const d=document.createElement('div'); d.className='sugg-item';
+      d.textContent=item.display_name.split(',').slice(0,3).join(', ');
+      d.onclick=()=>{ searchInput.value=item.display_name.split(',')[0]; box.style.display='none'; goToLocation(parseFloat(item.lat),parseFloat(item.lon),item.display_name.split(',')[0]); };
+      box.appendChild(d);
+    });
+    box.style.display='block';
+  } catch(e){box.style.display='none';}
+}
+
+async function searchLocation() {
+  document.getElementById('suggestions').style.display='none';
+  const q=searchInput.value.trim(); if(!q)return;
+  showNotif('Searching…',`Finding "${q}" in Andhra Pradesh`);
+  try {
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+', Andhra Pradesh, India')}&format=json&limit=1`);
+    const data=await r.json();
+    if(!data.length){showNotif('Not Found','Try a different location name.');return;}
+    goToLocation(parseFloat(data[0].lat),parseFloat(data[0].lon),q);
+  } catch(e){showNotif('Error','Could not reach search service.');}
+}
+
+function goToLocation(lat,lng,label) {
+  if(searchMarker) map.removeLayer(searchMarker);
+  if(nearestCircle) map.removeLayer(nearestCircle);
+
+  // Remove old ant-paths
+  antPaths.forEach(p => map.removeLayer(p));
+  antPaths = [];
+
+  // Yellow dot for searched location
+  searchMarker = L.circleMarker([lat,lng],{radius:9,fillColor:'#f59e0b',color:'#fff',weight:2.5,fillOpacity:1})
+    .addTo(map)
+    .bindPopup(`<div style="padding:6px 10px;font-weight:600;color:#1a2a3a;font-size:0.85rem;">📍 ${label}</div>`,{className:'custom-popup'})
+    .openPopup();
+
+  map.setView([lat,lng],10);
+
+  // Find nearest hospitals
+  const sorted = HOSPITALS.map(h=>({...h, _dist:haversine(lat,lng,h.lat,h.lng)})).sort((a,b)=>a._dist-b._dist);
+  const nearest = sorted.slice(0,5);
+
+  // Radius circle
+  nearestCircle = L.circle([lat,lng],{
+    radius: Math.max(nearest[0]._dist*1200, 20000),
+    color:'#f59e0b', weight:1.5, dashArray:'6 4',
+    fillColor:'#f59e0b', fillOpacity:0.05
+  }).addTo(map);
+
+  // Reset all by removing them from map
+  HOSPITALS.forEach(h => {
+    if (map.hasLayer(markers[h.id])) map.removeLayer(markers[h.id]);
+  });
+
+  // Highlight nearest 5 markers on map
+  nearest.forEach((h,i)=>{
+    markers[h.id].setStyle({
+      radius:      i===0?11:8,
+      fillColor:   i===0?'#ff0000':'#ff6600',
+      color:'#fff', weight:2, opacity:1, fillOpacity:1
+    }).addTo(map);
+  });
+
+  // Open nearest popup
+  markers[nearest[0].id].openPopup();
+
+  renderList(nearest, `Nearest Hospitals to "${label}"`);
+  showNotif(`${nearest.length} Hospitals Found`,`Nearest: ${nearest[0].name} · ${nearest[0]._dist.toFixed(1)} km · Fetching road routes…`);
+
+  // Draw road-based animated ant-paths via OSRM (async, one by one)
+  nearest.forEach((h,i) => drawRoadPath(lat, lng, h, i));
+}
+
+async function drawRoadPath(fromLat, fromLng, hospital, idx) {
+  const antColor   = idx===0 ? '#e84545' : '#ff8800';
+  const antWeight  = idx===0 ? 5 : 3;
+  const antOpacity = idx===0 ? 1 : 0.70;
+
+  try {
+    // OSRM public routing API — driving profile
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/` +
+      `${fromLng},${fromLat};${hospital.lng},${hospital.lat}` +
+      `?overview=full&geometries=geojson`;
+
+    const res  = await fetch(osrmUrl);
+    const data = await res.json();
+
+    if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+      throw new Error('No route');
+    }
+
+    // GeoJSON coords are [lng,lat] → convert to Leaflet [lat,lng]
+    const coords   = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    const roadKm   = (data.routes[0].distance / 1000).toFixed(1);
+    const roadMins = Math.round(data.routes[0].duration / 60);
+
+    const path = L.polyline.antPath(coords, {
+      delay:      400 + idx * 250,
+      weight:     antWeight,
+      color:      antColor,
+      pulseColor: '#ffffff',
+      dashArray:  [15, 25],
+      opacity:    antOpacity,
+      paused:     false,
+      reverse:    false
+    }).addTo(map);
+
+    path.bindTooltip(
+      `<b>${hospital.name}</b><br>🚗 ${roadKm} km &nbsp;⏱ ~${roadMins} min by road`,
+      { sticky:true, className:'custom-popup' }
+    );
+
+    antPaths.push(path);
+
+  } catch(e) {
+    // Graceful fallback: straight-line ant-path
+    console.warn('OSRM failed, fallback straight line:', e);
+    const path = L.polyline.antPath(
+      [[fromLat, fromLng], [hospital.lat, hospital.lng]],
+      { delay:600+idx*200, weight:antWeight, color:antColor,
+        pulseColor:'#ffffff', dashArray:[12,20], opacity:antOpacity }
+    ).addTo(map);
+    antPaths.push(path);
+  }
+}
+
+function haversine(lat1,lng1,lat2,lng2) {
+  const R=6371,r=Math.PI/180;
+  const dLat=(lat2-lat1)*r, dLng=(lng2-lng1)*r;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ============================================================
+// NOTIFICATION
+// ============================================================
+let nTimer;
+function showNotif(title,msg) {
+  clearTimeout(nTimer);
+  document.getElementById('notifTitle').textContent=title;
+  document.getElementById('notifMsg').textContent=msg;
+  const n=document.getElementById('notif'); n.classList.add('show');
+  nTimer=setTimeout(()=>n.classList.remove('show'),4000);
+}
+
+document.addEventListener('click',e=>{ if(!e.target.closest('.search-row')) document.getElementById('suggestions').style.display='none'; });
+</script>
+</body>
+</html>
