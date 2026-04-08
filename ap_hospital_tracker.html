@@ -1129,6 +1129,32 @@
       box-shadow: 0 1px 2px rgba(34, 197, 94, 0.08);
     }
 
+    .clear-paths-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface-elevated);
+      color: var(--ink-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .clear-paths-btn:hover:not(:disabled) {
+      background: rgba(15, 20, 25, 0.05);
+      color: var(--ink);
+      border-color: rgba(15, 20, 25, 0.12);
+    }
+
+    .clear-paths-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     @keyframes borderGlow {
       0% {
         opacity: 0.7;
@@ -1500,6 +1526,7 @@
           <button type="button" class="risk-btn moderate" onclick="setRisk('moderate')">Moderate</button>
           <button type="button" class="risk-btn low" onclick="setRisk('low')">Low risk</button>
         </div>
+        <button type="button" class="clear-paths-btn" id="btnClearPaths" onclick="toggleRiskRoadPaths()" title="Hide or show driving routes while a tier is active" disabled>Remove road paths</button>
       </div>
 
       <div class="stats-row">
@@ -1645,6 +1672,7 @@
     let currentSearchLng = null;
     let currentSearchLabel = null;
     let activeRisk = null; // 'critical', 'moderate', 'low'
+    let riskRoutesSuppressed = false;
 
     const HOSPITALS_CSV_FILE = 'hospitals_tirupati_srikalahasti.csv';
     let csvHospitalsCache = null;
@@ -1997,6 +2025,7 @@
     }
 
     renderList([], 'Search a location to find nearby hospitals');
+    syncRiskRouteButton();
 
     function updateDataSourceUi() {
       const liveBtn = document.getElementById('btnDataLive');
@@ -2024,11 +2053,13 @@
       hospitalsData = LIVE_HOSPITALS;
       dataSourceMode = 'live';
       activeRisk = null;
+      riskRoutesSuppressed = false;
       document.querySelectorAll('.risk-btn').forEach(function (btn) { btn.classList.remove('active'); });
       updateDataSourceUi();
       rebuildHospitalMarkers();
       if (currentSearchLat != null && currentSearchLng != null) updateMapAndList();
       else renderList([], 'Search a location to find nearby hospitals');
+      syncRiskRouteButton();
       showNotif('Live dataset', String(LIVE_HOSPITALS.length) + ' hospitals across Andhra Pradesh');
       updateAiContextStrip();
     };
@@ -2044,11 +2075,13 @@
         hospitalsData = list;
         dataSourceMode = 'csv';
         activeRisk = null;
+        riskRoutesSuppressed = false;
         document.querySelectorAll('.risk-btn').forEach(function (btn) { btn.classList.remove('active'); });
         updateDataSourceUi();
         rebuildHospitalMarkers();
         if (currentSearchLat != null && currentSearchLng != null) updateMapAndList();
         else renderList([], 'Search a location (try Tirupati or Srikalahasti) for nearby CSV hospitals');
+        syncRiskRouteButton();
         showNotif('CSV loaded', String(list.length) + ' hospitals from CSV');
         updateAiContextStrip();
       } catch (e) {
@@ -2109,17 +2142,50 @@
       });
     }
 
+    function syncRiskRouteButton() {
+      const btn = document.getElementById('btnClearPaths');
+      if (!btn) return;
+      btn.disabled = !activeRisk;
+      btn.textContent = (activeRisk && riskRoutesSuppressed) ? 'Show road paths' : 'Remove road paths';
+    }
+
+    /** After Critical / Moderate / Low: remove polylines only, or show them again (tier unchanged). */
+    function toggleRiskRoadPaths() {
+      if (!activeRisk) {
+        showNotif('Select a tier', 'Choose Critical, Moderate, or Low after searching.');
+        return;
+      }
+      if (!currentSearchLat || !currentSearchLng) return;
+      if (riskRoutesSuppressed) {
+        riskRoutesSuppressed = false;
+        updateMapAndList();
+        showNotif('Routes shown', 'Driving routes are visible again.');
+        return;
+      }
+      routePaths.forEach(function (p) {
+        if (map.hasLayer(p)) map.removeLayer(p);
+      });
+      routePaths = [];
+      riskRoutesSuppressed = true;
+      syncRiskRouteButton();
+      showNotif('Paths removed', 'Road routes hidden. Tap the button again to show them, or change tier / search.');
+    }
+
     function setRisk(riskStr) {
       if (activeRisk === riskStr) {
         activeRisk = null;
+        riskRoutesSuppressed = false;
         document.querySelectorAll('.risk-btn').forEach(btn => btn.classList.remove('active'));
         if (currentSearchLat && currentSearchLng) {
           updateMapAndList();
           showNotif('Tier cleared', 'All nearby hospitals are shown on the map again.');
+        } else {
+          syncRiskRouteButton();
         }
         return;
       }
       activeRisk = riskStr;
+      riskRoutesSuppressed = false;
       document.querySelectorAll('.risk-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelector(`.risk-btn.${activeRisk}`).classList.add('active');
 
@@ -2127,6 +2193,7 @@
         updateMapAndList();
       } else {
         showNotif('Select Location', 'Please search for a location or use GPS first.');
+        syncRiskRouteButton();
       }
     }
 
@@ -2134,6 +2201,7 @@
       currentSearchLat = lat;
       currentSearchLng = lng;
       currentSearchLabel = label;
+      riskRoutesSuppressed = false;
       updateMapAndList();
     }
 
@@ -2163,6 +2231,7 @@
       if (!sorted.length) {
         showNotif('No hospitals', 'This dataset has no locations to show.');
         renderList([], 'No hospitals in current dataset');
+        syncRiskRouteButton();
         return;
       }
 
@@ -2218,14 +2287,15 @@
           : `Hospital icons only — tap Critical, Moderate, or Low to draw a road route. Nearest: ${targetHospitals[0].name} (${targetHospitals[0]._dist.toFixed(1)} km).`
       );
 
-      // Road polylines only when a risk tier is chosen (default search = markers + search point + radius only)
-      if (activeRisk) {
+      // Road polylines only when a risk tier is chosen and user has not hidden them
+      if (activeRisk && !riskRoutesSuppressed) {
         targetHospitals.forEach((h, i) => {
           const listIdx = 0;
           const pColor = routeColorForContext(activeRisk, i);
           drawRoadPath(lat, lng, h, listIdx, pColor);
         });
       }
+      syncRiskRouteButton();
     }
 
     async function drawRoadPath(fromLat, fromLng, hospital, visualIndex, lineColor) {
