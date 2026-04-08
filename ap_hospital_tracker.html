@@ -2214,16 +2214,18 @@
           ? `1 hospital · ${activeRisk} tier`
           : `${sorted.length} hospitals on map`,
         activeRisk
-          ? `Route to: ${targetHospitals[0].name} · ${targetHospitals[0]._dist.toFixed(1)} km (straight-line)`
-          : `Routes: ${targetHospitals.length} · Primary: ${targetHospitals[0].name} · ${targetHospitals[0]._dist.toFixed(1)} km`
+          ? `Driving route to ${targetHospitals[0].name} · ~${targetHospitals[0]._dist.toFixed(1)} km straight-line`
+          : `Hospital icons only — tap Critical, Moderate, or Low to draw a road route. Nearest: ${targetHospitals[0].name} (${targetHospitals[0]._dist.toFixed(1)} km).`
       );
 
-      // Draw plain road polylines (colour by risk tier)
-      targetHospitals.forEach((h, i) => {
-        const listIdx = activeRisk ? 0 : i;
-        const pColor = routeColorForContext(activeRisk, i);
-        drawRoadPath(lat, lng, h, listIdx, pColor);
-      });
+      // Road polylines only when a risk tier is chosen (default search = markers + search point + radius only)
+      if (activeRisk) {
+        targetHospitals.forEach((h, i) => {
+          const listIdx = 0;
+          const pColor = routeColorForContext(activeRisk, i);
+          drawRoadPath(lat, lng, h, listIdx, pColor);
+        });
+      }
     }
 
     async function drawRoadPath(fromLat, fromLng, hospital, visualIndex, lineColor) {
@@ -2425,7 +2427,7 @@
         return `${e.length} hospitals are marked with 24/7 emergency: ` + e.map(h => h.name + ' — ' + h.dist).join('; ') + '.';
       }
       if (/risk|critical|moderate|low/.test(lower)) {
-        return 'Use Critical / Moderate / Low Risk after setting a location (search or GPS). Critical highlights the nearest hospital, Moderate the second nearest, Low the third. Colors match the map and legend (red, orange, green).';
+        return 'After search or GPS, Critical / Moderate / Low each shows one hospital (nearest, 2nd, 3rd) and draws a driving route. Without a tier, the map shows hospital icons only—no route lines.';
       }
       if (/nearest|closest|distance/.test(lower)) {
         if (currentSearchLat == null) {
@@ -2436,7 +2438,7 @@
         const top = sorted.slice(0, 3);
         if (!top.length) return 'No hospitals in the current dataset.';
         const parts = top.map((h, i) => `${i + 1}) ${h.name} — ${h._d.toFixed(1)} km`);
-        return `From "${currentSearchLabel || 'your location'}", the closest (straight-line): ${parts.join('; ')}. Open the map for driving routes.`;
+        return `From "${currentSearchLabel || 'your location'}", the closest (straight-line): ${parts.join('; ')}. Tap Critical, Moderate, or Low on the map to draw a driving route to the matching tier.`;
       }
       const byNameLen = [...hospitalsData].sort((a, b) => b.name.length - a.name.length);
       for (const h of byNameLen) {
