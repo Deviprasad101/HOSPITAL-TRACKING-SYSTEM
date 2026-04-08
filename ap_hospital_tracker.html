@@ -1627,7 +1627,12 @@
     // ============================================================
     // MAP — Standard OSM base tiles
     // ============================================================
-    const map = L.map('map', { center: [15.9129, 79.7400], zoom: 7, zoomControl: true });
+    const map = L.map('map', {
+      center: [15.9129, 79.7400],
+      zoom: 7,
+      zoomControl: true,
+      renderer: L.svg({ padding: 2 })
+    });
     map.zoomControl.setPosition('bottomright');
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1639,9 +1644,18 @@
     // AP STATE BOUNDARY — 1) bundled GeoJSON (OSM, smooth) 2) Overpass 3) coarse polygon
     // ============================================================
     const AP_BORDER_STYLE = {
-      color: '#ff6600', weight: 4, opacity: 1, fillColor: '#fff3e0', fillOpacity: 0.06,
+      color: '#ff6600',
+      weight: 4,
+      opacity: 1,
+      fillColor: '#fff3e0',
+      fillOpacity: 0.06,
+      lineJoin: 'round',
+      lineCap: 'round',
       className: 'ap-glow-border'
     };
+
+    /** Avoid tile-edge clipping + zoom simplification that draws the AP outline as broken segments */
+    const AP_BOUNDARY_PATH_OPTS = { smoothFactor: 0, noClip: true };
 
     const OVERPASS_MIRRORS = [
       'https://overpass.kumi.systems/api/interpreter',
@@ -1691,19 +1705,82 @@
       throw lastErr || new Error('All Overpass mirrors failed');
     }
 
+    /** AP BORDER.geojson ships in EPSG:3857 (meters); Leaflet needs WGS84 [lng, lat] in degrees */
+    function webMercatorToLonLat(x, y) {
+      const lng = (x / 20037508.34) * 180;
+      const lat = Math.atan(Math.sinh((Math.PI * y) / 20037508.34)) * 180 / Math.PI;
+      return [lng, lat];
+    }
+    function transformRing3857To4326(ring) {
+      return ring.map(function (pt) { return webMercatorToLonLat(pt[0], pt[1]); });
+    }
+    function transformGeometry3857To4326(geom) {
+      if (!geom || !geom.type) return geom;
+      if (geom.type === 'Polygon') {
+        return { type: 'Polygon', coordinates: geom.coordinates.map(transformRing3857To4326) };
+      }
+      if (geom.type === 'MultiPolygon') {
+        return {
+          type: 'MultiPolygon',
+          coordinates: geom.coordinates.map(function (poly) {
+            return poly.map(transformRing3857To4326);
+          })
+        };
+      }
+      return geom;
+    }
+    function firstCoordSample(geom) {
+      if (!geom || !geom.coordinates) return null;
+      if (geom.type === 'Polygon' && geom.coordinates[0] && geom.coordinates[0][0]) {
+        return geom.coordinates[0][0];
+      }
+      if (geom.type === 'MultiPolygon' && geom.coordinates[0] && geom.coordinates[0][0] && geom.coordinates[0][0][0]) {
+        return geom.coordinates[0][0][0];
+      }
+      return null;
+    }
+    /** Reproject bundled boundary GeoJSON to WGS84 when CRS is 3857 or coords look like Web Mercator meters */
+    function normalizeBundledBoundaryGeoJson(gj) {
+      const crsName = (gj.crs && gj.crs.properties && gj.crs.properties.name) || '';
+      const crsSays3857 = /3857|900913/i.test(crsName);
+      let geom = null;
+      if (gj.type === 'FeatureCollection' && gj.features && gj.features[0]) geom = gj.features[0].geometry;
+      else if (gj.type === 'Feature') geom = gj.geometry;
+      const sample = firstCoordSample(geom);
+      const looksLikeMeters = sample && (Math.abs(sample[0]) > 360 || Math.abs(sample[1]) > 360);
+      if (!crsSays3857 && !looksLikeMeters) return gj;
+
+      const tf = function (f) {
+        return {
+          type: 'Feature',
+          properties: f.properties || {},
+          geometry: transformGeometry3857To4326(f.geometry)
+        };
+      };
+      if (gj.type === 'FeatureCollection') {
+        return { type: 'FeatureCollection', features: gj.features.map(tf) };
+      }
+      if (gj.type === 'Feature') return tf(gj);
+      return gj;
+    }
+
     async function loadAPBoundary() {
-      try {
-        const gjUrl = new URL('ap_state_boundary.geojson', window.location.href).href;
-        const local = await fetch(gjUrl, { cache: 'force-cache' });
-        if (local.ok) {
-          const gj = await local.json();
-          if (gj.type === 'Feature' || gj.type === 'FeatureCollection') {
-            L.geoJSON(gj, { style: AP_BORDER_STYLE }).addTo(map);
-            return;
+      const boundaryFiles = ['AP BORDER.geojson', 'ap_state_boundary.geojson'];
+      for (const fileName of boundaryFiles) {
+        try {
+          const gjUrl = new URL(fileName, window.location.href).href;
+          const local = await fetch(gjUrl, { cache: 'force-cache' });
+          if (local.ok) {
+            let gj = await local.json();
+            gj = normalizeBundledBoundaryGeoJson(gj);
+            if (gj.type === 'Feature' || gj.type === 'FeatureCollection') {
+              L.geoJSON(gj, { style: AP_BORDER_STYLE, ...AP_BOUNDARY_PATH_OPTS }).addTo(map);
+              return;
+            }
           }
+        } catch (e) {
+          console.warn('Bundled boundary (' + fileName + '):', e.message || e);
         }
-      } catch (e) {
-        console.warn('Bundled boundary (ap_state_boundary.geojson):', e.message || e);
       }
 
       try {
@@ -1719,7 +1796,7 @@
             L.geoJSON({
               type: 'Feature',
               geometry: { type: 'Polygon', coordinates: [geoCoords] }
-            }, { style: AP_BORDER_STYLE }).addTo(map);
+            }, { style: AP_BORDER_STYLE, ...AP_BOUNDARY_PATH_OPTS }).addTo(map);
             return;
           }
         }
@@ -1775,7 +1852,7 @@
       L.geoJSON({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [apCoords] }
-      }, { style: { ...AP_BORDER_STYLE, weight: 5 } }).addTo(map);
+      }, { style: { ...AP_BORDER_STYLE, weight: 5 }, ...AP_BOUNDARY_PATH_OPTS }).addTo(map);
     }
 
     // Call AP boundary on load
