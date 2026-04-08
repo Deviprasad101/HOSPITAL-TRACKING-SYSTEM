@@ -1895,6 +1895,12 @@
 
     /** Nearest hospitals listed in sidebar when not using a risk filter */
     const NEAREST_SIDEBAR_LIMIT = 15;
+    /** Without a risk tier: show only hospitals within this straight-line km (Live AP spans ~600 km; old behaviour plotted all 32). */
+    const NEARBY_RADIUS_KM = 95;
+    /** If fewer than this many fall inside the radius, fall back to nearest N by distance (sparse areas). */
+    const NEARBY_RADIUS_MIN_COUNT = 3;
+    /** When not in a risk tier: show at least this many hospitals on map/list (if the dataset has them), up to NEAREST_SIDEBAR_LIMIT. */
+    const MIN_MAP_HOSPITALS_SHOWN = 10;
 
     function routeColorForContext(riskMode, listIndex) {
       if (riskMode === 'critical') return RISK_ROUTE.critical;
@@ -2236,17 +2242,39 @@
       }
 
       let targetHospitals = [];
-      if (activeRisk === 'critical') targetHospitals = [sorted[0]];
-      else if (activeRisk === 'moderate') targetHospitals = [sorted.length > 1 ? sorted[1] : sorted[0]];
-      else if (activeRisk === 'low') targetHospitals = [sorted.length > 2 ? sorted[2] : sorted[0]];
-      else targetHospitals = sorted.slice(0, 5);
+      let mapHospitals = [];
 
-      const listForSidebar = activeRisk
-        ? targetHospitals
-        : sorted.slice(0, NEAREST_SIDEBAR_LIMIT);
+      if (activeRisk === 'critical') {
+        targetHospitals = [sorted[0]];
+        mapHospitals = targetHospitals;
+      } else if (activeRisk === 'moderate') {
+        targetHospitals = [sorted.length > 1 ? sorted[1] : sorted[0]];
+        mapHospitals = targetHospitals;
+      } else if (activeRisk === 'low') {
+        targetHospitals = [sorted.length > 2 ? sorted[2] : sorted[0]];
+        mapHospitals = targetHospitals;
+      } else {
+        const withinRadius = sorted.filter(function (h) { return h._dist <= NEARBY_RADIUS_KM; });
+        const pool = withinRadius.length >= NEARBY_RADIUS_MIN_COUNT ? withinRadius : sorted;
+        mapHospitals = pool.slice(0, NEAREST_SIDEBAR_LIMIT);
+        const minWant = Math.min(MIN_MAP_HOSPITALS_SHOWN, NEAREST_SIDEBAR_LIMIT, sorted.length);
+        if (mapHospitals.length < minWant) {
+          const seen = new Set(mapHospitals.map(function (h) { return h.id; }));
+          for (let i = 0; i < sorted.length && mapHospitals.length < minWant; i++) {
+            const h = sorted[i];
+            if (!seen.has(h.id)) {
+              mapHospitals.push(h);
+              seen.add(h.id);
+            }
+          }
+        }
+        targetHospitals = mapHospitals.slice(0, Math.min(5, mapHospitals.length));
+      }
 
-      // Radius circle based on the furthest assigned hospital
-      const maxDist = targetHospitals[targetHospitals.length - 1]._dist;
+      const listForSidebar = activeRisk ? targetHospitals : mapHospitals;
+
+      // Radius circle from furthest hospital actually shown
+      const maxDist = mapHospitals[mapHospitals.length - 1]._dist;
       nearestCircle = L.circle([lat, lng], {
         radius: Math.max(maxDist * 1200, 15000),
         color: '#f59e0b', weight: 1.5, dashArray: '6 4',
@@ -2257,10 +2285,7 @@
         if (map.hasLayer(markers[h.id])) map.removeLayer(markers[h.id]);
       });
 
-      /** Risk tier: only the assigned hospital on the map. No tier: all hospitals (dimmed non-routes). */
-      const hospitalsToShow = activeRisk ? targetHospitals : sorted;
-
-      hospitalsToShow.forEach((h) => {
+      mapHospitals.forEach((h) => {
         const targetIdx = targetHospitals.findIndex(t => t.id === h.id);
         const isTarget = targetIdx >= 0;
         const m = markers[h.id];
@@ -2276,15 +2301,15 @@
 
       let title = activeRisk
         ? `${activeRisk.toUpperCase()} RISK — ${targetHospitals[0].name} only`
-        : `${listForSidebar.length} nearest to "${label}" · ${sorted.length} on map`;
+        : `${listForSidebar.length} nearby "${label}"`;
       renderList(listForSidebar, title);
       showNotif(
         activeRisk
           ? `1 hospital · ${activeRisk} tier`
-          : `${sorted.length} hospitals on map`,
+          : `${mapHospitals.length} hospitals nearby on map`,
         activeRisk
           ? `Driving route to ${targetHospitals[0].name} · ~${targetHospitals[0]._dist.toFixed(1)} km straight-line`
-          : `Hospital icons only — tap Critical, Moderate, or Low to draw a road route. Nearest: ${targetHospitals[0].name} (${targetHospitals[0]._dist.toFixed(1)} km).`
+          : `Up to ${NEAREST_SIDEBAR_LIMIT} hospitals (at least ${MIN_MAP_HOSPITALS_SHOWN} when available); prefer ~${NEARBY_RADIUS_KM} km. Tap a tier for a road route. Closest: ${mapHospitals[0].name} (${mapHospitals[0]._dist.toFixed(1)} km).`
       );
 
       // Road polylines only when a risk tier is chosen and user has not hidden them
