@@ -232,6 +232,48 @@
       align-items: center;
       gap: 8px;
       flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .data-source-toggle {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--header-border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .mode-btn {
+      background: rgba(255, 252, 249, 0.9);
+      border: none;
+      padding: 8px 12px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--header-sub);
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover {
+      background: rgba(196, 92, 62, 0.08);
+      color: var(--header-title);
+    }
+
+    .mode-btn.mode-btn--active {
+      background: linear-gradient(180deg, rgba(30, 58, 95, 0.12) 0%, rgba(30, 58, 95, 0.06) 100%);
+      color: var(--govt);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .mode-btn + .mode-btn {
+      border-left: 1px solid var(--header-border);
     }
 
     .live-pill {
@@ -261,6 +303,17 @@
 
     @keyframes livePulse {
       50% { opacity: 0.7; transform: scale(0.92); }
+    }
+
+    .live-pill.csv-pill {
+      background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+      border-color: rgba(180, 83, 9, 0.25);
+      color: #92400e;
+      letter-spacing: 0.06em;
+    }
+
+    .live-pill.csv-pill .live-dot {
+      display: none;
     }
 
     .main {
@@ -1418,7 +1471,11 @@
         </div>
       </div>
       <div class="header-actions">
-        <div class="live-pill" title="Dashboard uses live search and routing where available">
+        <div class="data-source-toggle" role="group" aria-label="Hospital data source">
+          <button type="button" class="mode-btn mode-btn--active" id="btnDataLive" title="32 hospitals across Andhra Pradesh (built-in)">Live AP</button>
+          <button type="button" class="mode-btn" id="btnDataCsv" title="Load Tirupati &amp; Srikalahasti from CSV">CSV</button>
+        </div>
+        <div class="live-pill" id="dataSourcePill" title="Active dataset">
           <div class="live-dot" aria-hidden="true"></div>
           Live
         </div>
@@ -1582,14 +1639,18 @@
 
   <script>
     // ============================================================
-    // GLOBAL STATE & DATA — 32 hospitals
+    // GLOBAL STATE & DATA — Live AP list + optional CSV (Tirupati / Srikalahasti)
     // ============================================================
     let currentSearchLat = null;
     let currentSearchLng = null;
     let currentSearchLabel = null;
     let activeRisk = null; // 'critical', 'moderate', 'low'
 
-    const HOSPITALS = [
+    const HOSPITALS_CSV_FILE = 'hospitals_tirupati_srikalahasti.csv';
+    let csvHospitalsCache = null;
+    let dataSourceMode = 'live'; // 'live' | 'csv'
+
+    const LIVE_HOSPITALS = [
       { id: 1, name: "King George Hospital", dist: "Visakhapatnam", type: "govt", beds: 1200, specialty: "Multi-Specialty", lat: 17.7188, lng: 83.2985, phone: "0891-2565539", emergency: true },
       { id: 2, name: "Care Hospitals Visakhapatnam", dist: "Visakhapatnam", type: "private", beds: 350, specialty: "Cardiology", lat: 17.7231, lng: 83.3012, phone: "0891-6762222", emergency: true },
       { id: 3, name: "Seven Hills Hospital", dist: "Visakhapatnam", type: "private", beds: 500, specialty: "Oncology", lat: 17.7340, lng: 83.3120, phone: "0891-2728888", emergency: true },
@@ -1624,6 +1685,68 @@
       { id: 32, name: "Govt Hospital Paderu", dist: "Alluri Sitharama Raju", type: "govt", beds: 200, specialty: "General", lat: 18.0700, lng: 82.6650, phone: "08936-232301", emergency: false },
     ];
 
+    let hospitalsData = LIVE_HOSPITALS;
+
+    function parseHospitalCsv(text) {
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) return [];
+      const header = lines[0].split(',').map(function (s) { return s.trim(); });
+      const col = function (name) { return header.indexOf(name); };
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        if (cols.length < header.length) continue;
+        const id = parseInt(cols[col('Hospital_ID')], 10);
+        const name = (cols[col('Hospital_Name')] || '').trim();
+        const city = (cols[col('City')] || '').trim();
+        const lat = parseFloat(cols[col('Latitude')]);
+        const lng = parseFloat(cols[col('Longitude')]);
+        if (!name || Number.isNaN(lat) || Number.isNaN(lng)) continue;
+        const rawType = (cols[col('Type')] || '').trim();
+        const beds = parseInt(cols[col('Beds')], 10) || 0;
+        const specialty = (cols[col('Specialty')] || '').trim();
+        const rating = parseFloat(cols[col('Rating')]);
+        const isPrivate = /^private$/i.test(rawType);
+        const type = isPrivate ? 'private' : 'govt';
+        let typeLabel = 'Government';
+        if (isPrivate) typeLabel = 'Private';
+        else if (/^trust$/i.test(rawType)) typeLabel = 'Trust';
+        const badge = /^trust$/i.test(rawType) ? 'TRUST' : (isPrivate ? 'PRIVATE' : 'GOVT');
+        rows.push({
+          id: id,
+          name: name,
+          dist: city,
+          type: type,
+          typeLabel: typeLabel,
+          badge: badge,
+          beds: beds,
+          specialty: specialty,
+          lat: lat,
+          lng: lng,
+          phone: '—',
+          emergency: !isPrivate,
+          rating: Number.isFinite(rating) ? rating : null
+        });
+      }
+      return rows;
+    }
+
+    async function loadCsvHospitals() {
+      if (csvHospitalsCache) return csvHospitalsCache;
+      const url = new URL(HOSPITALS_CSV_FILE, window.location.href).href;
+      const res = await fetch(url, { cache: 'force-cache' });
+      if (!res.ok) throw new Error('Could not load ' + HOSPITALS_CSV_FILE + ' (HTTP ' + res.status + '). Keep the file next to this HTML page.');
+      const list = parseHospitalCsv(await res.text());
+      if (!list.length) throw new Error('No valid hospital rows in CSV.');
+      csvHospitalsCache = list;
+      return list;
+    }
+
+    function hospitalTypeLine(h) {
+      const t = h.typeLabel || (h.type === 'govt' ? 'Government' : 'Private');
+      return t + ' · ' + (h.specialty || '');
+    }
+
     // ============================================================
     // MAP — Standard OSM base tiles
     // ============================================================
@@ -1631,7 +1754,7 @@
       center: [15.9129, 79.7400],
       zoom: 7,
       zoomControl: true,
-      renderer: L.svg({ padding: 2 })
+      preferCanvas: true
     });
     map.zoomControl.setPosition('bottomright');
 
@@ -1774,7 +1897,7 @@
             let gj = await local.json();
             gj = normalizeBundledBoundaryGeoJson(gj);
             if (gj.type === 'Feature' || gj.type === 'FeatureCollection') {
-              L.geoJSON(gj, { style: AP_BORDER_STYLE, ...AP_BOUNDARY_PATH_OPTS }).addTo(map);
+              L.geoJSON(gj, { style: AP_BORDER_STYLE, ...AP_BOUNDARY_PATH_OPTS, interactive: false }).addTo(map);
               return;
             }
           }
@@ -1796,7 +1919,7 @@
             L.geoJSON({
               type: 'Feature',
               geometry: { type: 'Polygon', coordinates: [geoCoords] }
-            }, { style: AP_BORDER_STYLE, ...AP_BOUNDARY_PATH_OPTS }).addTo(map);
+            }, { style: AP_BORDER_STYLE, ...AP_BOUNDARY_PATH_OPTS, interactive: false }).addTo(map);
             return;
           }
         }
@@ -1852,7 +1975,7 @@
       L.geoJSON({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [apCoords] }
-      }, { style: { ...AP_BORDER_STYLE, weight: 5 }, ...AP_BOUNDARY_PATH_OPTS }).addTo(map);
+      }, { style: { ...AP_BORDER_STYLE, weight: 5 }, ...AP_BOUNDARY_PATH_OPTS, interactive: false }).addTo(map);
     }
 
     // Call AP boundary on load
@@ -1938,37 +2061,53 @@
       const distHtml = typeof opts.distKm === 'number'
         ? `<div class="p-dist">📍 ${opts.distKm.toFixed(1)} km from your point</div>`
         : '';
+      const ratingRow = (h.rating != null && !Number.isNaN(h.rating))
+        ? `<div class="p-row"><span class="p-lbl">Rating</span><span class="p-val">${h.rating} / 5</span></div>`
+        : '';
+      const phoneOk = h.phone && h.phone !== '—';
+      const callBtn = phoneOk
+        ? `<button type="button" class="p-btn call" onclick="window.location.href='tel:${String(h.phone).replace(/'/g, '')}'">Call</button>`
+        : '<button type="button" class="p-btn call" disabled style="opacity:0.55;cursor:not-allowed;">Call</button>';
       return `<div class="p-inner">
     <div class="p-popup-header">
       <span class="p-hospital-icon" aria-hidden="true">🏥</span>
       <div class="p-popup-head-text">
         <div class="p-name">${h.name}</div>
-        <div class="p-type ${h.type === 'govt' ? 't-govt' : 't-private'}">${h.type === 'govt' ? 'Government' : 'Private'} · ${h.specialty}</div>
+        <div class="p-type ${h.type === 'govt' ? 't-govt' : 't-private'}">${hospitalTypeLine(h)}</div>
       </div>
     </div>
     ${distHtml}
     <div class="p-rows">
       <div class="p-row"><span class="p-lbl">District</span><span class="p-val">${h.dist}</span></div>
       <div class="p-row"><span class="p-lbl">Beds</span><span class="p-val">${h.beds}</span></div>
-      <div class="p-row"><span class="p-lbl">Phone</span><span class="p-val">${h.phone}</span></div>
+      <div class="p-row"><span class="p-lbl">Phone</span><span class="p-val">${phoneOk ? h.phone : '—'}</span></div>
+      ${ratingRow}
       <div class="p-row"><span class="p-lbl">Emergency</span><span class="p-val" style="color:${h.emergency ? '#0e6b3a' : '#b91c1c'}">${h.emergency ? '24/7 Available' : 'Not Available'}</span></div>
     </div>
     <div class="p-btns">
-      <button class="p-btn dir" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}','_blank')">Directions</button>
-      <button class="p-btn call" onclick="window.location.href='tel:${h.phone}'">Call</button>
+      <button type="button" class="p-btn dir" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}','_blank')">Directions</button>
+      ${callBtn}
     </div>
   </div>`;
     }
 
-    HOSPITALS.forEach(h => {
-      const bg = h.type === 'govt' ? '#1e3a5f' : '#e84545';
-      const m = L.marker([h.lat, h.lng], {
-        icon: makeHospitalDivIcon(bg, 34, { opacity: 1, borderWidth: 2 })
+    function rebuildHospitalMarkers() {
+      Object.keys(markers).forEach(function (id) {
+        if (map.hasLayer(markers[id])) map.removeLayer(markers[id]);
+        delete markers[id];
       });
-      m.bindPopup(buildPopup(h), { className: 'custom-popup', maxWidth: 280 });
-      m.on('click', () => highlightCard(h.id));
-      markers[h.id] = m;
-    });
+      hospitalsData.forEach(function (h) {
+        const bg = h.type === 'govt' ? '#1e3a5f' : '#e84545';
+        const m = L.marker([h.lat, h.lng], {
+          icon: makeHospitalDivIcon(bg, 34, { opacity: 1, borderWidth: 2 })
+        });
+        m.bindPopup(buildPopup(h), { className: 'custom-popup', maxWidth: 280 });
+        m.on('click', function () { highlightCard(h.id); });
+        markers[h.id] = m;
+      });
+    }
+
+    rebuildHospitalMarkers();
 
     // ============================================================
     // SIDEBAR LIST
@@ -1984,7 +2123,7 @@
         card.innerHTML = `
       <div class="hc-top">
         <div class="hc-name">${h.name}</div>
-        <span class="hc-badge ${h.type === 'govt' ? 'bg' : 'bp'}">${h.type === 'govt' ? 'GOVT' : 'PRIVATE'}</span>
+        <span class="hc-badge ${h.type === 'govt' ? 'bg' : 'bp'}">${h.badge || (h.type === 'govt' ? 'GOVT' : 'PRIVATE')}</span>
       </div>
       <div class="hc-dist">📍 ${h.dist}</div>
       <div class="hc-meta">
@@ -2009,6 +2148,66 @@
     }
 
     renderList([], 'Search a location to find nearby hospitals');
+
+    function updateDataSourceUi() {
+      const liveBtn = document.getElementById('btnDataLive');
+      const csvBtn = document.getElementById('btnDataCsv');
+      const pill = document.getElementById('dataSourcePill');
+      if (liveBtn && csvBtn) {
+        liveBtn.classList.toggle('mode-btn--active', dataSourceMode === 'live');
+        csvBtn.classList.toggle('mode-btn--active', dataSourceMode === 'csv');
+      }
+      if (pill) {
+        if (dataSourceMode === 'live') {
+          pill.className = 'live-pill';
+          pill.title = 'Built-in Andhra Pradesh hospital list';
+          pill.innerHTML = '<div class="live-dot" aria-hidden="true"></div> Live';
+        } else {
+          pill.className = 'live-pill csv-pill';
+          pill.title = 'Data from hospitals_tirupati_srikalahasti.csv';
+          pill.innerHTML = '<span aria-hidden="true">📄</span> CSV';
+        }
+      }
+    }
+
+    document.getElementById('btnDataLive').onclick = function () {
+      if (dataSourceMode === 'live') return;
+      hospitalsData = LIVE_HOSPITALS;
+      dataSourceMode = 'live';
+      activeRisk = null;
+      document.querySelectorAll('.risk-btn').forEach(function (btn) { btn.classList.remove('active'); });
+      updateDataSourceUi();
+      rebuildHospitalMarkers();
+      if (currentSearchLat != null && currentSearchLng != null) updateMapAndList();
+      else renderList([], 'Search a location to find nearby hospitals');
+      showNotif('Live dataset', String(LIVE_HOSPITALS.length) + ' hospitals across Andhra Pradesh');
+      updateAiContextStrip();
+    };
+
+    document.getElementById('btnDataCsv').onclick = async function () {
+      if (dataSourceMode === 'csv' && csvHospitalsCache) {
+        showNotif('CSV mode', String(csvHospitalsCache.length) + ' hospitals (Tirupati & Srikalahasti)');
+        return;
+      }
+      showNotif('Loading…', 'Reading ' + HOSPITALS_CSV_FILE);
+      try {
+        const list = await loadCsvHospitals();
+        hospitalsData = list;
+        dataSourceMode = 'csv';
+        activeRisk = null;
+        document.querySelectorAll('.risk-btn').forEach(function (btn) { btn.classList.remove('active'); });
+        updateDataSourceUi();
+        rebuildHospitalMarkers();
+        if (currentSearchLat != null && currentSearchLng != null) updateMapAndList();
+        else renderList([], 'Search a location (try Tirupati or Srikalahasti) for nearby CSV hospitals');
+        showNotif('CSV loaded', String(list.length) + ' hospitals from CSV');
+        updateAiContextStrip();
+      } catch (e) {
+        showNotif('CSV error', e.message || String(e));
+      }
+    };
+
+    updateDataSourceUi();
 
     // ============================================================
     // SEARCH
@@ -2062,6 +2261,15 @@
     }
 
     function setRisk(riskStr) {
+      if (activeRisk === riskStr) {
+        activeRisk = null;
+        document.querySelectorAll('.risk-btn').forEach(btn => btn.classList.remove('active'));
+        if (currentSearchLat && currentSearchLng) {
+          updateMapAndList();
+          showNotif('Tier cleared', 'All nearby hospitals are shown on the map again.');
+        }
+        return;
+      }
       activeRisk = riskStr;
       document.querySelectorAll('.risk-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelector(`.risk-btn.${activeRisk}`).classList.add('active');
@@ -2101,7 +2309,13 @@
       map.setView([lat, lng], 10);
 
       // Find nearest hospitals
-      const sorted = HOSPITALS.map(h => ({ ...h, _dist: haversine(lat, lng, h.lat, h.lng) })).sort((a, b) => a._dist - b._dist);
+      const sorted = hospitalsData.map(h => ({ ...h, _dist: haversine(lat, lng, h.lat, h.lng) })).sort((a, b) => a._dist - b._dist);
+
+      if (!sorted.length) {
+        showNotif('No hospitals', 'This dataset has no locations to show.');
+        renderList([], 'No hospitals in current dataset');
+        return;
+      }
 
       let targetHospitals = [];
       if (activeRisk === 'critical') targetHospitals = [sorted[0]];
@@ -2121,12 +2335,14 @@
         fillColor: '#f59e0b', fillOpacity: 0.05
       }).addTo(map);
 
-      HOSPITALS.forEach(h => {
+      hospitalsData.forEach(h => {
         if (map.hasLayer(markers[h.id])) map.removeLayer(markers[h.id]);
       });
 
-      // Show every hospital on the map; highlight routed / tier targets, softer markers for the rest
-      sorted.forEach((h) => {
+      /** Risk tier: only the assigned hospital on the map. No tier: all hospitals (dimmed non-routes). */
+      const hospitalsToShow = activeRisk ? targetHospitals : sorted;
+
+      hospitalsToShow.forEach((h) => {
         const targetIdx = targetHospitals.findIndex(t => t.id === h.id);
         const isTarget = targetIdx >= 0;
         const m = markers[h.id];
@@ -2135,17 +2351,22 @@
 
         m.bindPopup(buildPopup(h, { distKm: h._dist }), { className: 'custom-popup', maxWidth: 280 });
         m.addTo(map);
+        if (isTarget && typeof m.bringToFront === 'function') m.bringToFront();
       });
 
       markers[targetHospitals[0].id].openPopup();
 
       let title = activeRisk
-        ? `${activeRisk.toUpperCase()} RISK: Assigned`
+        ? `${activeRisk.toUpperCase()} RISK — ${targetHospitals[0].name} only`
         : `${listForSidebar.length} nearest to "${label}" · ${sorted.length} on map`;
       renderList(listForSidebar, title);
       showNotif(
-        `${sorted.length} hospitals on map`,
-        `Routes: ${targetHospitals.length} · Primary: ${targetHospitals[0].name} · ${targetHospitals[0]._dist.toFixed(1)} km`
+        activeRisk
+          ? `1 hospital · ${activeRisk} tier`
+          : `${sorted.length} hospitals on map`,
+        activeRisk
+          ? `Route to: ${targetHospitals[0].name} · ${targetHospitals[0]._dist.toFixed(1)} km (straight-line)`
+          : `Routes: ${targetHospitals.length} · Primary: ${targetHospitals[0].name} · ${targetHospitals[0]._dist.toFixed(1)} km`
       );
 
       // Draw plain road polylines (colour by risk tier)
@@ -2313,20 +2534,21 @@
     }
 
     function buildDashboardContextForAi() {
-      const govt = HOSPITALS.filter(h => h.type === 'govt').length;
-      const priv = HOSPITALS.filter(h => h.type === 'private').length;
-      const districts = [...new Set(HOSPITALS.map(h => h.dist))].sort().join(', ');
-      const emerg = HOSPITALS.filter(h => h.emergency).length;
+      const scope = dataSourceMode === 'csv' ? 'Tirupati & Srikalahasti (CSV)' : 'Andhra Pradesh (live list)';
+      const govt = hospitalsData.filter(h => h.type === 'govt').length;
+      const priv = hospitalsData.filter(h => h.type === 'private').length;
+      const districts = [...new Set(hospitalsData.map(h => h.dist))].sort().join(', ');
+      const emerg = hospitalsData.filter(h => h.emergency).length;
       let loc = 'No search location set yet.';
       let nearest = '';
       if (currentSearchLat != null && currentSearchLng != null) {
         loc = `User reference point: "${currentSearchLabel || 'Location'}" at ${currentSearchLat.toFixed(4)}, ${currentSearchLng.toFixed(4)}.`;
-        const sorted = HOSPITALS.map(h => ({ ...h, _d: haversine(currentSearchLat, currentSearchLng, h.lat, h.lng) }))
+        const sorted = hospitalsData.map(h => ({ ...h, _d: haversine(currentSearchLat, currentSearchLng, h.lat, h.lng) }))
           .sort((a, b) => a._d - b._d).slice(0, 5);
         nearest = 'Five nearest by straight-line km: ' + sorted.map(h => `${h.name} (${h.dist}, ${h._d.toFixed(1)} km)`).join('; ') + '.';
       }
       const risk = activeRisk ? `Risk filter active: ${activeRisk}.` : 'No single risk tier filter (showing nearest set when location is set).';
-      return `Andhra Pradesh Hospital Tracking — ${HOSPITALS.length} hospitals total (${govt} government, ${priv} private). ${emerg} list 24/7 emergency. Districts covered: ${districts}. ${loc} ${nearest} ${risk}`;
+      return `Hospital Tracking (${scope}) — ${hospitalsData.length} hospitals total (${govt} government-type, ${priv} private). ${emerg} list 24/7 emergency. Areas: ${districts}. ${loc} ${nearest} ${risk}`;
     }
 
     function updateAiContextStrip() {
@@ -2337,11 +2559,11 @@
     function localAssistantReply(q) {
       const lower = q.toLowerCase();
       const ctx = buildDashboardContextForAi();
-      const govt = HOSPITALS.filter(h => h.type === 'govt');
-      const priv = HOSPITALS.filter(h => h.type === 'private');
+      const govt = hospitalsData.filter(h => h.type === 'govt');
+      const priv = hospitalsData.filter(h => h.type === 'private');
 
       if (/how many|total|count|number of/.test(lower)) {
-        return `There are ${HOSPITALS.length} hospitals in the dataset: ${govt.length} government and ${priv.length} private. ${HOSPITALS.filter(h => h.emergency).length} show 24/7 emergency care.`;
+        return `There are ${hospitalsData.length} hospitals in the dataset: ${govt.length} government-type and ${priv.length} private. ${hospitalsData.filter(h => h.emergency).length} show 24/7 emergency care.`;
       }
       if (/government|govt|public/.test(lower) && /how many|list|which/.test(lower)) {
         return 'Government hospitals: ' + govt.map(h => `${h.name} (${h.dist})`).join('; ') + '.';
@@ -2350,7 +2572,7 @@
         return 'Private hospitals: ' + priv.map(h => `${h.name} (${h.dist})`).join('; ') + '.';
       }
       if (/emergency|24|24\/7/.test(lower)) {
-        const e = HOSPITALS.filter(h => h.emergency);
+        const e = hospitalsData.filter(h => h.emergency);
         return `${e.length} hospitals are marked with 24/7 emergency: ` + e.map(h => h.name + ' — ' + h.dist).join('; ') + '.';
       }
       if (/risk|critical|moderate|low/.test(lower)) {
@@ -2360,20 +2582,22 @@
         if (currentSearchLat == null) {
           return 'Search for a place or use the GPS button first. Then I can describe the nearest hospitals from your point.';
         }
-        const sorted = HOSPITALS.map(h => ({ ...h, _d: haversine(currentSearchLat, currentSearchLng, h.lat, h.lng) }))
+        const sorted = hospitalsData.map(h => ({ ...h, _d: haversine(currentSearchLat, currentSearchLng, h.lat, h.lng) }))
           .sort((a, b) => a._d - b._d);
         const top = sorted.slice(0, 3);
-        return `From "${currentSearchLabel || 'your location'}", the three closest (straight-line) are: 1) ${top[0].name} — ${top[0]._d.toFixed(1)} km; 2) ${top[1].name} — ${top[1]._d.toFixed(1)} km; 3) ${top[2].name} — ${top[2]._d.toFixed(1)} km. Open the map for driving routes.`;
+        if (!top.length) return 'No hospitals in the current dataset.';
+        const parts = top.map((h, i) => `${i + 1}) ${h.name} — ${h._d.toFixed(1)} km`);
+        return `From "${currentSearchLabel || 'your location'}", the closest (straight-line): ${parts.join('; ')}. Open the map for driving routes.`;
       }
-      const byNameLen = [...HOSPITALS].sort((a, b) => b.name.length - a.name.length);
+      const byNameLen = [...hospitalsData].sort((a, b) => b.name.length - a.name.length);
       for (const h of byNameLen) {
         if (lower.includes(h.name.toLowerCase())) {
           return `${h.name} (${h.dist}): ${h.type} hospital, ${h.beds} beds, ${h.specialty}. Phone ${h.phone}. Emergency: ${h.emergency ? '24/7' : 'not listed'}.`;
         }
       }
-      for (const d of [...new Set(HOSPITALS.map(x => x.dist))]) {
+      for (const d of [...new Set(hospitalsData.map(x => x.dist))]) {
         if (lower.includes(d.toLowerCase())) {
-          const inDist = HOSPITALS.filter(x => x.dist === d);
+          const inDist = hospitalsData.filter(x => x.dist === d);
           return `In ${d} district there are ${inDist.length} hospital(s): ` + inDist.map(x => `${x.name} (${x.type}, ${x.beds} beds)`).join('; ') + '.';
         }
       }
