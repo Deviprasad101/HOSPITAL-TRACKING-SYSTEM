@@ -2174,7 +2174,8 @@
       routePaths = [];
       riskRoutesSuppressed = true;
       syncRiskRouteButton();
-      showNotif('Paths removed', 'Road routes hidden. Tap the button again to show them, or change tier / search.');
+      updateMapAndList();
+      showNotif('Paths removed', 'Road routes hidden. All hospital markers are shown again. Tap the button to show routes.');
     }
 
     function setRisk(riskStr) {
@@ -2244,13 +2245,13 @@
       let targetHospitals = [];
       let mapHospitals = [];
 
-      if (activeRisk === 'critical') {
+      if (activeRisk === 'critical' && !riskRoutesSuppressed) {
         targetHospitals = [sorted[0]];
         mapHospitals = targetHospitals;
-      } else if (activeRisk === 'moderate') {
+      } else if (activeRisk === 'moderate' && !riskRoutesSuppressed) {
         targetHospitals = [sorted.length > 1 ? sorted[1] : sorted[0]];
         mapHospitals = targetHospitals;
-      } else if (activeRisk === 'low') {
+      } else if (activeRisk === 'low' && !riskRoutesSuppressed) {
         targetHospitals = [sorted.length > 2 ? sorted[2] : sorted[0]];
         mapHospitals = targetHospitals;
       } else {
@@ -2271,7 +2272,14 @@
         targetHospitals = mapHospitals.slice(0, Math.min(5, mapHospitals.length));
       }
 
-      const listForSidebar = activeRisk ? targetHospitals : mapHospitals;
+      if (activeRisk && riskRoutesSuppressed) {
+        mapHospitals = sorted;
+        if (activeRisk === 'critical') targetHospitals = [sorted[0]];
+        else if (activeRisk === 'moderate') targetHospitals = [sorted.length > 1 ? sorted[1] : sorted[0]];
+        else targetHospitals = [sorted.length > 2 ? sorted[2] : sorted[0]];
+      }
+
+      const listForSidebar = activeRisk && !riskRoutesSuppressed ? targetHospitals : mapHospitals;
 
       // Radius circle from furthest hospital actually shown
       const maxDist = mapHospitals[mapHospitals.length - 1]._dist;
@@ -2299,17 +2307,26 @@
 
       markers[targetHospitals[0].id].openPopup();
 
-      let title = activeRisk
-        ? `${activeRisk.toUpperCase()} RISK — ${targetHospitals[0].name} only`
-        : `${listForSidebar.length} nearby "${label}"`;
+      let title;
+      if (activeRisk && !riskRoutesSuppressed) {
+        title = `${activeRisk.toUpperCase()} RISK — ${targetHospitals[0].name} only`;
+      } else if (activeRisk && riskRoutesSuppressed) {
+        title = `${mapHospitals.length} hospitals · routes hidden (${activeRisk}: ${targetHospitals[0].name})`;
+      } else {
+        title = `${listForSidebar.length} nearby "${label}"`;
+      }
       renderList(listForSidebar, title);
       showNotif(
-        activeRisk
+        activeRisk && !riskRoutesSuppressed
           ? `1 hospital · ${activeRisk} tier`
-          : `${mapHospitals.length} hospitals nearby on map`,
-        activeRisk
+          : activeRisk && riskRoutesSuppressed
+            ? `${mapHospitals.length} hospitals on map · ${activeRisk} tier highlighted`
+            : `${mapHospitals.length} hospitals nearby on map`,
+        activeRisk && !riskRoutesSuppressed
           ? `Driving route to ${targetHospitals[0].name} · ~${targetHospitals[0]._dist.toFixed(1)} km straight-line`
-          : `Up to ${NEAREST_SIDEBAR_LIMIT} hospitals (at least ${MIN_MAP_HOSPITALS_SHOWN} when available); prefer ~${NEARBY_RADIUS_KM} km. Tap a tier for a road route. Closest: ${mapHospitals[0].name} (${mapHospitals[0]._dist.toFixed(1)} km).`
+          : activeRisk && riskRoutesSuppressed
+            ? `All ${mapHospitals.length} dataset hospitals shown; ${targetHospitals[0].name} is your ${activeRisk} pick. Tap "Show road paths" to draw the route again.`
+            : `Up to ${NEAREST_SIDEBAR_LIMIT} hospitals (at least ${MIN_MAP_HOSPITALS_SHOWN} when available); prefer ~${NEARBY_RADIUS_KM} km. Tap a tier for a road route. Closest: ${mapHospitals[0].name} (${mapHospitals[0]._dist.toFixed(1)} km).`
       );
 
       // Road polylines only when a risk tier is chosen and user has not hidden them
