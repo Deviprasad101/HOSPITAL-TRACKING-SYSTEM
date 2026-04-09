@@ -1716,7 +1716,8 @@
     let hospitalsData = LIVE_HOSPITALS;
 
     function parseHospitalCsv(text) {
-      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      text = String(text || '').replace(/^\uFEFF/, '').trim();
+      const lines = text.split(/\r?\n/).map(function (ln) { return ln.trim(); }).filter(Boolean);
       if (lines.length < 2) return [];
       const header = lines[0].split(',').map(function (s) { return s.trim(); });
       const col = function (name) { return header.indexOf(name); };
@@ -1724,7 +1725,10 @@
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',');
         if (cols.length < header.length) continue;
-        const id = parseInt(cols[col('Hospital_ID')], 10);
+        const idCol = col('Hospital_ID');
+        let id = idCol >= 0 ? parseInt(String(cols[idCol] || '').trim(), 10) : NaN;
+        if (!Number.isFinite(id) || id < 1) id = 800000 + i;
+        while (rows.some(function (r) { return r.id === id; })) id++;
         const name = (cols[col('Hospital_Name')] || '').trim();
         const city = (cols[col('City')] || '').trim();
         const lat = parseFloat(cols[col('Latitude')]);
@@ -1764,7 +1768,7 @@
       const url = new URL(HOSPITALS_CSV_FILE, window.location.href).href;
       const res = await fetch(url, { cache: 'force-cache' });
       if (!res.ok) throw new Error('Could not load ' + HOSPITALS_CSV_FILE + ' (HTTP ' + res.status + '). Keep the file next to this HTML page.');
-      const list = parseHospitalCsv(await res.text());
+      const list = parseHospitalCsv((await res.text()).replace(/^\uFEFF/, ''));
       if (!list.length) throw new Error('No valid hospital rows in CSV.');
       csvHospitalsCache = list;
       return list;
@@ -2091,7 +2095,10 @@
         showNotif('CSV loaded', String(list.length) + ' hospitals from CSV');
         updateAiContextStrip();
       } catch (e) {
-        showNotif('CSV error', e.message || String(e));
+        const hint = window.location.protocol === 'file:'
+          ? ' Browsers block loading local CSV from file:// — run a local server (e.g. npx serve) in this folder.'
+          : '';
+        showNotif('CSV error', (e.message || String(e)) + hint);
       }
     };
 
@@ -2254,6 +2261,9 @@
       } else if (activeRisk === 'low' && !riskRoutesSuppressed) {
         targetHospitals = [sorted.length > 2 ? sorted[2] : sorted[0]];
         mapHospitals = targetHospitals;
+      } else if (dataSourceMode === 'csv') {
+        mapHospitals = sorted.slice();
+        targetHospitals = mapHospitals.slice(0, Math.min(5, mapHospitals.length));
       } else {
         const withinRadius = sorted.filter(function (h) { return h._dist <= NEARBY_RADIUS_KM; });
         const pool = withinRadius.length >= NEARBY_RADIUS_MIN_COUNT ? withinRadius : sorted;
@@ -2286,7 +2296,8 @@
       nearestCircle = L.circle([lat, lng], {
         radius: Math.max(maxDist * 1200, 15000),
         color: '#f59e0b', weight: 1.5, dashArray: '6 4',
-        fillColor: '#f59e0b', fillOpacity: 0.05
+        fillColor: '#f59e0b', fillOpacity: 0.05,
+        interactive: false
       }).addTo(map);
 
       hospitalsData.forEach(h => {
@@ -2297,6 +2308,7 @@
         const targetIdx = targetHospitals.findIndex(t => t.id === h.id);
         const isTarget = targetIdx >= 0;
         const m = markers[h.id];
+        if (!m) return;
 
         setHospitalMarkerIcon(m, h, isTarget, targetIdx, activeRisk);
 
@@ -2305,7 +2317,8 @@
         if (isTarget && typeof m.bringToFront === 'function') m.bringToFront();
       });
 
-      markers[targetHospitals[0].id].openPopup();
+      const primaryMarker = markers[targetHospitals[0].id];
+      if (primaryMarker) primaryMarker.openPopup();
 
       let title;
       if (activeRisk && !riskRoutesSuppressed) {
@@ -2326,7 +2339,9 @@
           ? `Driving route to ${targetHospitals[0].name} · ~${targetHospitals[0]._dist.toFixed(1)} km straight-line`
           : activeRisk && riskRoutesSuppressed
             ? `All ${mapHospitals.length} dataset hospitals shown; ${targetHospitals[0].name} is your ${activeRisk} pick. Tap "Show road paths" to draw the route again.`
-            : `Up to ${NEAREST_SIDEBAR_LIMIT} hospitals (at least ${MIN_MAP_HOSPITALS_SHOWN} when available); prefer ~${NEARBY_RADIUS_KM} km. Tap a tier for a road route. Closest: ${mapHospitals[0].name} (${mapHospitals[0]._dist.toFixed(1)} km).`
+            : dataSourceMode === 'csv'
+              ? `All ${mapHospitals.length} hospitals from CSV are on the map. Tap any marker for details. Closest: ${mapHospitals[0].name} (${mapHospitals[0]._dist.toFixed(1)} km).`
+              : `Up to ${NEAREST_SIDEBAR_LIMIT} hospitals (at least ${MIN_MAP_HOSPITALS_SHOWN} when available); prefer ~${NEARBY_RADIUS_KM} km. Tap a tier for a road route. Closest: ${mapHospitals[0].name} (${mapHospitals[0]._dist.toFixed(1)} km).`
       );
 
       // Road polylines only when a risk tier is chosen and user has not hidden them
