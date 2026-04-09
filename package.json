@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "chat-proxy": "node chat-proxy.mjs",
-    "fetch-boundary": "node fetch-ap-boundary.mjs"
+    "fetch-boundary": "node fetch-ap-boundary.mjs",
+    "ollama-check": "powershell -NoProfile -ExecutionPolicy Bypass -File ./check-ollama.ps1"
   },
   "dependencies": {
     "cors": "^2.8.5",

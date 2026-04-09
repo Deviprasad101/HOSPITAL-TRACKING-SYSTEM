@@ -1228,11 +1228,11 @@
       position: fixed;
       top: 0;
       right: 0;
-      width: min(400px, max(0px, calc(100vw - var(--sidebar-width))));
+      width: min(420px, max(0px, calc(100vw - var(--sidebar-width))));
       height: 100vh;
-      background: var(--surface-elevated);
-      border-left: 1px solid var(--line);
-      box-shadow: -12px 0 48px rgba(15, 20, 25, 0.12);
+      background: #fafafa;
+      border-left: 1px solid #e5e5e4;
+      box-shadow: -8px 0 40px rgba(15, 20, 25, 0.1);
       z-index: 1001;
       display: flex;
       flex-direction: column;
@@ -1246,127 +1246,114 @@
 
     .ai-chat-header {
       position: relative;
-      background-image:
-        radial-gradient(ellipse 100% 160% at 88% -35%, rgba(196, 92, 62, 0.07) 0%, transparent 52%),
-        radial-gradient(ellipse 70% 120% at -8% 105%, rgba(30, 58, 95, 0.055) 0%, transparent 48%),
-        var(--header-surface);
-      color: var(--header-title);
-      padding: 17px 18px 16px;
+      background: #f4f4f3;
+      color: #1a1a1a;
+      padding: 16px 16px 15px;
       display: flex;
       align-items: center;
       gap: 12px;
-      border-bottom: 1px solid var(--header-border);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+      border-bottom: 1px solid #e8e8e6;
       flex-shrink: 0;
     }
 
-    .ai-chat-header::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: linear-gradient(90deg,
-        var(--accent) 0%,
-        #d4785c 18%,
-        #c4a574 42%,
-        var(--govt) 72%,
-        #2a4d6e 100%);
-      opacity: 0.95;
-    }
-
     .ai-chat-header .ai-chat-header-icon {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.35rem;
-      background: linear-gradient(148deg, #faf6f2 0%, #fff 50%, #f5ebe4 100%);
-      border: 1px solid rgba(196, 92, 62, 0.18);
-      border-radius: var(--radius-md);
-      box-shadow: 0 1px 4px rgba(45, 38, 32, 0.05);
+      font-size: 1.4rem;
+      background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 55%, #faf5ff 100%);
+      border: 1px solid #ddd6fe;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(91, 33, 182, 0.08);
       flex-shrink: 0;
     }
 
     .ai-chat-header h2 {
       font-family: var(--font-display);
-      font-size: 1.15rem;
-      font-weight: 400;
+      font-size: 1.08rem;
+      font-weight: 600;
       flex: 1;
-      letter-spacing: -0.01em;
-      color: var(--header-title);
+      letter-spacing: -0.02em;
+      color: #111827;
+      margin: 0;
     }
 
     .ai-chat-close {
-      background: rgba(45, 38, 32, 0.05);
-      border: 1px solid var(--header-border);
-      color: var(--header-sub);
+      background: #fff;
+      border: 1px solid #e5e5e4;
+      color: #6b7280;
       width: 36px;
       height: 36px;
-      border-radius: var(--radius-sm);
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 1.25rem;
+      font-size: 1.35rem;
       line-height: 1;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
 
     .ai-chat-close:hover {
-      background: rgba(45, 38, 32, 0.08);
-      color: var(--header-title);
-      border-color: rgba(62, 53, 44, 0.12);
+      background: #f3f4f6;
+      color: #111827;
+      border-color: #d1d5db;
     }
 
     .ai-chat-context {
-      font-size: 0.68rem;
-      color: var(--ink-muted);
+      font-size: 0.7rem;
+      color: #6b7280;
       padding: 10px 14px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
+      background: #f0f0ef;
+      border-bottom: 1px solid #e5e5e4;
       line-height: 1.5;
+      max-height: 5.2em;
+      overflow-y: auto;
+      flex-shrink: 0;
     }
 
     .ai-chat-messages {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+      background: #fafafa;
     }
 
     .ai-msg {
-      max-width: 92%;
+      max-width: 94%;
       padding: 12px 14px;
-      border-radius: var(--radius-md);
-      font-size: 0.83rem;
-      line-height: 1.5;
-      color: var(--ink);
+      border-radius: 10px;
+      font-size: 0.84rem;
+      line-height: 1.55;
+      color: #1f2937;
     }
 
     .ai-msg.user {
       align-self: flex-end;
       background: #fff;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow-sm);
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     }
 
     .ai-msg.assistant {
       align-self: flex-start;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-left: 3px solid var(--accent);
+      background: #ececec;
+      border: 1px solid #e0e0e0;
+      border-left: 4px solid #e85d4c;
     }
 
     .ai-msg.assistant.error {
-      border-left-color: var(--private);
-      background: rgba(184, 50, 50, 0.06);
+      border-left-color: #dc2626;
+      background: #fef2f2;
+      border-color: #fecaca;
     }
 
     .ai-chat-input-row {
       padding: 12px 14px 16px;
-      border-top: 1px solid var(--line);
+      border-top: 1px solid #e5e5e4;
       background: #fff;
       flex-shrink: 0;
     }
@@ -1421,52 +1408,139 @@
     }
 
     .ai-api-row {
-      padding: 0 14px 12px;
-      font-size: 0.68rem;
-      color: var(--ink-muted);
+      padding: 0 14px 10px;
+      font-size: 0.7rem;
+      color: #6b7280;
+      background: #fafafa;
+      border-top: 1px solid #ececec;
+      flex-shrink: 0;
     }
 
-    .ai-api-row summary {
+    .ai-backend-details summary {
+      list-style: none;
+    }
+
+    .ai-backend-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .ai-backend-summary {
       cursor: pointer;
-      color: var(--govt);
+      color: #2563eb;
       font-weight: 600;
+      font-size: 0.78rem;
+      padding: 10px 0 6px;
+      user-select: none;
+    }
+
+    .ai-backend-summary:hover {
+      color: #1d4ed8;
+    }
+
+    .ai-backend-chevron {
+      display: inline-block;
+      margin-right: 4px;
+      font-size: 0.65rem;
+      opacity: 0.85;
+    }
+
+    .ai-backend-help {
+      margin: 0 0 10px;
+      line-height: 1.5;
+      font-size: 0.68rem;
+      color: #6b7280;
+    }
+
+    .ai-backend-help code {
+      font-size: 0.65rem;
+      background: #f3f4f6;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+
+    .ai-provider-label {
+      display: block;
+      font-weight: 700;
+      color: #1e3a5f;
+      font-size: 0.74rem;
+      margin-bottom: 6px;
+    }
+
+    .ai-sublabel {
+      display: block;
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.7rem;
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+
+    .ai-save-inline-btn {
+      margin-top: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: inherit;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+      color: #1e3a5f;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .ai-save-inline-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .ai-key-hint {
+      margin: 8px 0 4px;
+      font-size: 0.68rem;
+    }
+
+    .ai-proxy-hint {
+      margin: 6px 0 0;
+      font-size: 0.65rem;
+      color: #6b7280;
+    }
+
+    .ai-proxy-hint code {
+      font-size: 0.62rem;
     }
 
     #aiProvider {
       width: 100%;
-      margin-top: 6px;
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      font-size: 0.75rem;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.76rem;
       font-family: inherit;
-      color: var(--ink);
+      color: #111827;
       background: #fff;
     }
 
-    #aiApiKey {
+    #aiApiKey,
+    #aiProxyUrl,
+    #aiOllamaUrl,
+    #aiOllamaModel {
       width: 100%;
-      margin-top: 6px;
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      font-size: 0.72rem;
+      box-sizing: border-box;
+      margin-top: 0;
+      padding: 9px 11px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.74rem;
       font-family: inherit;
+      color: #111827;
+      background: #fff;
     }
 
     #aiOpenKeyWrap,
-    #aiProxyUrlWrap {
+    #aiProxyUrlWrap,
+    #aiOllamaWrap {
       display: none;
-    }
-
-    #aiProxyUrl {
-      width: 100%;
-      margin-top: 6px;
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      font-size: 0.72rem;
-      font-family: inherit;
     }
 
     .ai-typing {
@@ -1621,7 +1695,7 @@
   </div>
 
   <button type="button" class="ai-chat-fab" id="aiChatFab" title="Open map assistant" aria-label="Open map assistant">
-    <span class="fab-icon" aria-hidden="true">💬</span>
+    <span class="fab-icon" aria-hidden="true">🤖</span>
     <span class="fab-label">Map assistant</span>
   </button>
 
@@ -1631,28 +1705,38 @@
       <h2>Map assistant</h2>
       <button type="button" class="ai-chat-close" id="aiChatClose" title="Close" aria-label="Close chat">×</button>
     </div>
-    <div class="ai-chat-context" id="aiChatContextStrip">Live dashboard summary. Default: free cloud AI (no key). Offline rules used if the network fails.</div>
+    <div class="ai-chat-context" id="aiChatContextStrip" title="">Live dashboard summary…</div>
     <div class="ai-chat-messages" id="aiChatMessages" role="log" aria-live="polite"></div>
     <div class="ai-api-row">
-      <details open>
-        <summary>AI backend</summary>
-        <p style="margin:6px 0 4px;"><strong>Recommended:</strong> <strong>Gemini (local server)</strong> — free API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>, model <code style="font-size:0.68rem;">gemini-2.0-flash</code> (set in <code style="font-size:0.68rem;">.env</code>). Run <code style="font-size:0.68rem;">npm install</code> then <code style="font-size:0.68rem;">npm run chat-proxy</code> in this folder. Keys stay on your PC, not in the page. Pollinations / browser OpenAI are fallbacks.</p>
-        <label for="aiProvider" style="font-weight:600;color:var(--govt);font-size:0.72rem;">Provider</label>
+      <details class="ai-backend-details" open>
+        <summary class="ai-backend-summary"><span class="ai-backend-chevron" aria-hidden="true">▼</span> AI backend</summary>
+        <p class="ai-backend-help"><strong>Ollama:</strong> install from <a href="https://ollama.com" target="_blank" rel="noopener">ollama.com</a>. <strong>Windows:</strong> open <strong>Ollama</strong> from the Start menu (or system tray) — it starts the API on <code>127.0.0.1:11434</code> automatically; you usually do <em>not</em> need a terminal. If <code>ollama serve</code> says <em>“Only one usage of each socket address…”</em>, that is normal: the server is <strong>already running</strong> — do not start a second copy. In the project folder run <code>npm run ollama-check</code> to verify. If the API is down and nothing uses 11434, then run <code>ollama serve</code>. Pull a model: <code>ollama pull llama3</code> (or any name from <code>ollama list</code> — set <strong>Model name</strong> to match exactly, e.g. <code>llama3</code> or <code>llama3:latest</code>). Choose <strong>Ollama — local</strong> for direct chat, or <strong>Ollama — via chat-proxy</strong> if the browser blocks requests. <strong>Gemini:</strong> free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>, <code>npm run chat-proxy</code> with <code>GEMINI_API_KEY</code> in <code>.env</code>. Pollinations / OpenAI / Offline are optional fallbacks.</p>
+        <label for="aiProvider" class="ai-provider-label">Provider</label>
         <select id="aiProvider" aria-label="AI provider">
-          <option value="gemini-proxy">Gemini — local chat proxy (recommended)</option>
+          <option value="ollama">Ollama — local (recommended if installed)</option>
+          <option value="ollama-proxy">Ollama — via chat-proxy (fixes CORS)</option>
+          <option value="gemini-proxy">Gemini — local chat proxy</option>
           <option value="pollinations">Pollinations — anonymous (unreliable)</option>
           <option value="openai">OpenAI — key in browser (often blocked by CORS)</option>
           <option value="local">Offline — rules only</option>
         </select>
+        <div id="aiOllamaWrap">
+          <label for="aiOllamaUrl" class="ai-sublabel">Ollama URL</label>
+          <input type="text" id="aiOllamaUrl" placeholder="http://127.0.0.1:11434" autocomplete="off" />
+          <label for="aiOllamaModel" class="ai-sublabel">Model name</label>
+          <input type="text" id="aiOllamaModel" placeholder="llama3" autocomplete="off" />
+          <button type="button" class="ai-save-inline-btn" id="aiSaveOllamaBtn">Save Ollama settings</button>
+        </div>
         <div id="aiProxyUrlWrap">
-          <label for="aiProxyUrl" style="display:block;margin-top:8px;font-weight:600;color:var(--govt);font-size:0.72rem;">Proxy URL</label>
+          <label for="aiProxyUrl" class="ai-sublabel">Chat proxy base / URL</label>
           <input type="text" id="aiProxyUrl" placeholder="http://127.0.0.1:8787/api/chat" autocomplete="off" />
-          <button type="button" class="search-btn" style="margin-top:6px;width:100%;" id="aiSaveProxyBtn">Save proxy URL</button>
+          <p id="aiOllamaProxyHint" class="ai-proxy-hint" style="display:none;">Uses the same host for <code>/api/ollama-chat</code> (e.g. <code>http://127.0.0.1:8787/api/ollama-chat</code>).</p>
+          <button type="button" class="ai-save-inline-btn" id="aiSaveProxyBtn">Save proxy URL</button>
         </div>
         <div id="aiOpenKeyWrap">
-          <p style="margin:8px 0 4px;font-size:0.68rem;">Key stored in this browser only. Prefer a server proxy for production.</p>
+          <p class="ai-key-hint">Key stored in this browser only. Prefer a server proxy for production.</p>
           <input type="password" id="aiApiKey" placeholder="sk-…" autocomplete="off" />
-          <button type="button" class="search-btn" style="margin-top:6px;width:100%;" id="aiSaveKeyBtn">Save OpenAI key</button>
+          <button type="button" class="ai-save-inline-btn" id="aiSaveKeyBtn">Save OpenAI key</button>
         </div>
       </details>
     </div>
@@ -2440,6 +2524,10 @@
     const aiOpenKeyWrap = document.getElementById('aiOpenKeyWrap');
     const aiProxyUrlWrap = document.getElementById('aiProxyUrlWrap');
     const aiProxyUrlInput = document.getElementById('aiProxyUrl');
+    const aiOllamaWrap = document.getElementById('aiOllamaWrap');
+    const aiOllamaUrlInput = document.getElementById('aiOllamaUrl');
+    const aiOllamaModelInput = document.getElementById('aiOllamaModel');
+    const aiOllamaProxyHint = document.getElementById('aiOllamaProxyHint');
 
     const POLLINATIONS_GET_BASE = 'https://text.pollinations.ai/';
     const POLLINATIONS_POST_URL = 'https://text.pollinations.ai/openai';
@@ -2471,7 +2559,19 @@
     function syncAiProviderUi() {
       const v = aiProviderSelect.value;
       aiOpenKeyWrap.style.display = v === 'openai' ? 'block' : 'none';
-      aiProxyUrlWrap.style.display = v === 'gemini-proxy' ? 'block' : 'none';
+      aiProxyUrlWrap.style.display = v === 'gemini-proxy' || v === 'ollama-proxy' ? 'block' : 'none';
+      aiOllamaWrap.style.display = v === 'ollama' || v === 'ollama-proxy' ? 'block' : 'none';
+      if (aiOllamaProxyHint) aiOllamaProxyHint.style.display = v === 'ollama-proxy' ? 'block' : 'none';
+    }
+
+    function getOllamaProxyChatUrl() {
+      const u = (localStorage.getItem('ap_ht_chat_proxy_url') || defaultProxyUrl).trim();
+      try {
+        const parsed = new URL(u);
+        return parsed.origin + '/api/ollama-chat';
+      } catch {
+        return 'http://127.0.0.1:8787/api/ollama-chat';
+      }
     }
 
     const defaultProxyUrl = 'http://127.0.0.1:8787/api/chat';
@@ -2485,10 +2585,32 @@
     };
 
     const savedProv = localStorage.getItem('ap_ht_ai_provider');
-    if (savedProv === 'gemini-proxy' || savedProv === 'openai' || savedProv === 'pollinations' || savedProv === 'local') {
+    if (savedProv === 'gemini-proxy' || savedProv === 'openai' || savedProv === 'pollinations' || savedProv === 'local' || savedProv === 'ollama' || savedProv === 'ollama-proxy') {
       aiProviderSelect.value = savedProv;
+    } else {
+      aiProviderSelect.value = 'ollama';
+      localStorage.setItem('ap_ht_ai_provider', 'ollama');
+    }
+    if (aiOllamaUrlInput) {
+      aiOllamaUrlInput.value = localStorage.getItem('ap_ht_ollama_url') || 'http://127.0.0.1:11434';
+      {
+        let om = localStorage.getItem('ap_ht_ollama_model');
+        if (om === 'llama3.2') {
+          om = 'llama3';
+          localStorage.setItem('ap_ht_ollama_model', om);
+        }
+        aiOllamaModelInput.value = om || 'llama3';
+      }
     }
     syncAiProviderUi();
+
+    document.getElementById('aiSaveOllamaBtn').onclick = function () {
+      const u = aiOllamaUrlInput.value.trim() || 'http://127.0.0.1:11434';
+      const m = aiOllamaModelInput.value.trim() || 'llama3';
+      localStorage.setItem('ap_ht_ollama_url', u.replace(/\/$/, ''));
+      localStorage.setItem('ap_ht_ollama_model', m);
+      showNotif('Saved', 'Ollama URL and model name updated.');
+    };
 
     aiProviderSelect.addEventListener('change', () => {
       localStorage.setItem('ap_ht_ai_provider', aiProviderSelect.value);
@@ -2531,7 +2653,8 @@
 
     function updateAiContextStrip() {
       const full = buildDashboardContextForAi();
-      aiContextStrip.textContent = full.slice(0, 220) + (full.length > 220 ? '…' : '');
+      aiContextStrip.textContent = full;
+      aiContextStrip.title = full;
     }
 
     function localAssistantReply(q) {
@@ -2703,6 +2826,50 @@
         const prior = aiRemoteTurns.slice(-18);
         const messages = [{ role: 'system', content: sys }, ...prior, { role: 'user', content: text }];
 
+        if (provider === 'ollama' || provider === 'ollama-proxy') {
+          const base = (localStorage.getItem('ap_ht_ollama_url') || 'http://127.0.0.1:11434').replace(/\/$/, '');
+          let model = (localStorage.getItem('ap_ht_ollama_model') || 'llama3').trim() || 'llama3';
+          if (model === 'llama3.2') model = 'llama3';
+          const url = provider === 'ollama-proxy' ? getOllamaProxyChatUrl() : base + '/api/chat';
+          const body = provider === 'ollama-proxy'
+            ? JSON.stringify({ messages, model })
+            : JSON.stringify({ model, messages, stream: false });
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+          });
+          const raw = await res.text();
+          let data;
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            document.getElementById('aiTyping')?.remove();
+            appendAiMessage('assistant', 'Bad response from Ollama (not JSON). ' + raw.slice(0, 220), true);
+            return;
+          }
+          document.getElementById('aiTyping')?.remove();
+          if (!res.ok) {
+            const err = data.error ? String(data.error) : res.statusText;
+            appendAiMessage(
+              'assistant',
+              err + '\n\n— Check: `ollama serve`, model pulled (`ollama pull ' + model + '`). If the browser blocked localhost (CORS), use **Ollama — via chat-proxy** and run `npm run chat-proxy`.',
+              true
+            );
+            return;
+          }
+          const reply = data.reply
+            ? String(data.reply).trim()
+            : (data.message && data.message.content ? String(data.message.content).trim() : '');
+          if (!reply) {
+            appendAiMessage('assistant', 'Empty reply from Ollama.', true);
+            return;
+          }
+          appendAiMessage('assistant', reply);
+          aiRemoteTurns.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
+          return;
+        }
+
         if (provider === 'gemini-proxy') {
           const proxyUrl = (localStorage.getItem('ap_ht_chat_proxy_url') || defaultProxyUrl).trim() || defaultProxyUrl;
           const res = await fetch(proxyUrl, {
@@ -2800,6 +2967,11 @@
         if (provider === 'pollinations' && /abort|timeout/i.test(msg)) {
           msg += ' — The free AI took too long or blocked the request; try Gemini proxy or Offline.';
         }
+        if ((provider === 'ollama' || provider === 'ollama-proxy') && /failed to fetch|networkerror|load failed/i.test(msg)) {
+          msg += provider === 'ollama'
+            ? ' — Try **Ollama — via chat-proxy** (npm run chat-proxy) if CORS blocked localhost:11434.'
+            : ' — Is chat-proxy running? It forwards to Ollama at 127.0.0.1:11434.';
+        }
         appendAiMessage('assistant', 'Something went wrong: ' + msg + '\n\n— Offline answer —\n' + localAssistantReply(text), true);
       } finally {
         aiSendBtn.disabled = false;
@@ -2815,7 +2987,7 @@
     });
 
     (function initAiChat() {
-      appendAiMessage('assistant', 'Hi — pick Gemini (local proxy) for reliable answers: add a free GEMINI_API_KEY in .env and run npm run chat-proxy (see AI backend). I use your live hospital data. Pollinations and Offline are fallbacks.');
+      appendAiMessage('assistant', 'Hi — I use your map’s hospital data as context. With Ollama, pick **Ollama — local** and set **Model name** to match `ollama list` (e.g. llama3 or llama3:latest). If the browser blocks Ollama, use **Ollama — via chat-proxy** and run `npm run chat-proxy`. Gemini, Pollinations, and Offline are under AI backend.');
     })();
   </script>
 </body>
